@@ -20,7 +20,7 @@ static GXColor *tmgbar_colors[] = {
 };
 
 // Main Menu
-static char **LdshOptions_Start[] = {"Ledge", "Falling", "Stage", "Respawn Platform"};
+static char **LdshOptions_Start[] = {"Ledge", "Falling", "Stage"};
 static char **LdshOptions_Reset[] = {"On", "Off"};
 static char **LdshOptions_HUD[] = {"On", "Off"};
 static EventOption LdshOptions_Main[] = {
@@ -962,28 +962,6 @@ void Fighter_PlaceOnLedge(LedgedashData *event_data, GOBJ *hmn, int line_index, 
         }
         break;
     }
-    case 3:
-    {
-        // place player in a random position in respawn wait
-        event_data->tip.refresh_num = 0;
-
-        // get random position
-        float xpos_min = 40;
-        float xpos_max = 65;
-        float ypos_min = -30;
-        float ypos_max = 30;
-        hmn_data->phys.pos.X = ((ledge_dir * -1) * (xpos_min + HSD_Randi(xpos_max - xpos_min) + HSD_Randf())) + (ledge_pos.X);
-        hmn_data->phys.pos.Y = ((ledge_dir * -1) * (ypos_min + HSD_Randi(ypos_max - ypos_min) + HSD_Randf())) + (ledge_pos.Y);
-
-        // enter rebirth
-        Fighter_EnterRebirthWait(hmn);
-        hmn_data->cb.Phys = RebirthWait_Phys;
-        hmn_data->cb.IASA = RebirthWait_IASA;
-
-        Fighter_UpdateRebirthPlatformPos(hmn);
-
-        break;
-    }
     }
 
     Ledgedash_InitVariables(event_data);
@@ -1125,41 +1103,6 @@ void Fighter_UpdateCamera(GOBJ *fighter)
     // reset onscreen bool
     //Fighter_UpdateOnscreenBool(fighter);
     fighter_data->flags.is_offscreen = 0;
-}
-void RebirthWait_Phys(GOBJ *fighter)
-{
-
-    FighterData *fighter_data = fighter->userdata;
-
-    // infinite time
-    fighter_data->state_var.stateVar1 = 2;
-
-    return;
-}
-int RebirthWait_IASA(GOBJ *fighter)
-{
-
-    FighterData *fighter_data = fighter->userdata;
-
-    if (Fighter_IASACheck_JumpAerial(fighter))
-    {
-    }
-    else
-    {
-        ftCommonData *ftcommon = *stc_ftcommon;
-
-        // check for lstick movement
-        float stick_x = fabs(fighter_data->input.lstick_x);
-        float stick_y = fighter_data->input.lstick_y;
-        if ((stick_x > 0.2875) && (fighter_data->input.timer_lstick_tilt_x < 2) ||
-            (stick_y < (ftcommon->lstick_rebirthfall * -1)) && (fighter_data->input.timer_lstick_tilt_y < 4))
-        {
-            Fighter_EnterFall(fighter);
-            return 1;
-        }
-    }
-
-    return 0;
 }
 int Fighter_CheckFall(FighterData *hmn_data)
 {
