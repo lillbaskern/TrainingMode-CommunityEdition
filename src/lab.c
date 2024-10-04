@@ -1117,6 +1117,7 @@ void LCancel_CPUThink(GOBJ *event, GOBJ *hmn, GOBJ *cpu)
             cpu_data->input.trigger = 1.0f;
             cpu_data->cpu.ai = 15; // Ensure AI doesn't override this input
             // input shield angle if appropriate
+
             u16 shield_ang = LabOptions_CPU[OPTCPU_SHIELDDIR].option_val;
             // if you do not check action state before inputting a shield angle, it can cause slight
             // bugs with OOS options, like trying to input shield angle while doing a grounded up-b OOS.
@@ -1126,8 +1127,7 @@ void LCancel_CPUThink(GOBJ *event, GOBJ *hmn, GOBJ *cpu)
                 if (shield_ang == CPUSHIELDANG_TOWARD || shield_ang == CPUSHIELDANG_AWAY) {
                     int dir = (int)Fighter_GetOpponentDir(cpu_data, hmn_data);
                     stickX = 127 * (dir * (shield_ang == CPUSHIELDANG_AWAY ? -1 : 1));
-                }
-                else {
+                } else {
                     stickY = 127 * (shield_ang == CPUSHIELDANG_DOWN ? -1 : 1);
                 }
                 // overwrite the last-frame stick inputs, so 
