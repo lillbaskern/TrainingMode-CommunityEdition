@@ -90,12 +90,6 @@ enum cpu_option
     OPTCPU_SHIELDHITS,
 };
 
-enum lockPercent_option
-{
-    OPT_LOCKPCNT_OFF = 0,
-    OPT_LOCKPCNT_ON,
-};
-
 enum tech_option 
 {
     OPTTECH_INVISIBLE,
@@ -1447,7 +1441,6 @@ static EventMenu LabMenu_Main = {
 // General
 static char **LabOptions_CamMode[] = {"Normal", "Zoom", "Fixed", "Advanced"};
 static char **LabOptions_FrameAdvButton[] = {"L", "Z", "X", "Y"};
-static char **LabOptions_LockPlayerPercent[] = {"Off", "On"};
 static EventOption LabOptions_General[] = {
     // frame advance
     {
@@ -1490,7 +1483,7 @@ static EventOption LabOptions_General[] = {
         .menu = 0,                           
         .option_name = "Lock Player Percent",        
         .desc = "Locks Player percent to current percent",
-        .option_values = LabOptions_LockPlayerPercent,             
+        .option_values = LabOptions_OffOn,             
         .onOptionChange = Lab_ChangePlayerLockPercent,
     },
     // model display
