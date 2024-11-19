@@ -1,5 +1,7 @@
 #include "lab.h"
 
+#include "recoveries.c"
+
 #include <stddef.h>
 
 #define LOW_ANALOG_TRIGGER_THRESHOLD 24
@@ -1978,9 +1980,11 @@ void CPUThink(GOBJ *event, GOBJ *hmn, GOBJ *cpu)
     case (CPUSTATE_RECOVER):
     CPULOGIC_RECOVER:
     {
+        cpu_data->cpu.ai = 15;
+        int ret = Recover_Think(cpu, hmn);
 
         // if onstage, go back to start
-        if (cpu_data->phys.air_state == 0)
+        if (ret == RECOVER_FINISHED)
         {
 
         CPUSTATE_ENTERSTART:
@@ -1999,10 +2003,10 @@ void CPUThink(GOBJ *event, GOBJ *hmn, GOBJ *cpu)
             eventData->cpu_isactionable = 0;
             eventData->cpu_sdinum = 0;
             goto CPULOGIC_START;
+        } else if (ret == RECOVER_UNIMPLEMENTED) {
+            // recover with CPU AI
+            cpu_data->cpu.ai = 0;
         }
-
-        // recover with CPU AI
-        cpu_data->cpu.ai = 0;
 
         break;
     }
