@@ -689,7 +689,6 @@ enum lab_option
     OPTLAB_INFODISP_CPU,
     OPTLAB_HELP,
     OPTLAB_EXIT,
-    OPTGEN_TAUNT,
 
     OPTLAB_COUNT
 };
@@ -765,6 +764,7 @@ enum gen_option
     OPTGEN_INPUT,
     OPTGEN_SPEED,
     OPTGEN_STALE,
+    OPTGEN_TAUNT,
 
     OPTGEN_COUNT
 };
