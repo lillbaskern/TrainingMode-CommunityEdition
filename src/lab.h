@@ -896,8 +896,8 @@ static EventOption LabOptions_General[OPTGEN_COUNT] = {
     {
         .option_kind = OPTKIND_STRING,
         .value_num = 2,
-        .option_val = 0,
-        .option_name = "Disable taunt",
+        .option_val = 1,
+        .option_name = "Disable Taunt",
         .desc = "Disable the taunt button (D-pad up)",
         .option_values = LabOptions_OffOn,
     },
