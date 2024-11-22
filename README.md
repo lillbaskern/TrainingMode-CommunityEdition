@@ -83,6 +83,9 @@ Have some specific tech you want to train? Find a bug that's been annoying you? 
 ## How to make changes:  
 - If you want to alter an event written in C (Easy):
     - The training lab, lcancel, ledgedash, and wavedash events are written in c. This makes them much easier to modify than the other events. Poke around in their source in `src/`.
+    - If you're not familiar with other languages, then the C/H file distinction can be confusing.
+        - In general, the C (source) files contain code, while the H (header) files contain data (such as static arrays) and types (structs, enums, unions).
+        - Menus are arrays of `EventOption`s, so they are stored in H (header) files, along with any data they use.
     - The other events are written in assembly. 
 - If you want to alter an event written in asm (Big Knowledge Check):
     - You will need to know a bit of Power PC asm.

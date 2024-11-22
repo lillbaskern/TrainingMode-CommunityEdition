@@ -4,6 +4,7 @@ dats = build/ledgedash.dat build/wavedash.dat build/lcancel.dat build/labCSS.dat
 
 # find all .asm and .s files in the ASM dir. We have the escape the spaces, so we pipe to sed
 ASM_FILES := $(shell find ASM -type f \( -name '*.asm' -o -name '*.s' \) | sed 's/ /\\ /g')
+SHELL := /bin/bash
 
 MEX_BUILD=mono MexTK/MexTK.exe -ff -b "build" -q -ow -l "MexTK/melee.link" -op 2
 

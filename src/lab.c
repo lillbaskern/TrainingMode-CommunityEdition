@@ -52,7 +52,55 @@ const int LOCKOUT_DURATION = 30;
 static float cpu_locked_percent = 0;
 static float hmn_locked_percent = 0;
 
+static LabState lab_state = LabState_Normal;
+
 // Menu Callbacks
+
+void Lab_ChangeInputDisplay(GOBJ *menu_gobj, int value) {
+    Memcard *memcard = R13_PTR(MEMCARD);
+    memcard->TM_LabCPUInputDisplay = value;
+}
+
+void Lab_ChangeCounterAction_Ground(GOBJ *menu_gobj, int value) {
+    Memcard *memcard = R13_PTR(MEMCARD);
+    memcard->TM_LabCPUCounterGround = value;
+}
+
+void Lab_ChangeCounterAction_Air(GOBJ *menu_gobj, int value) {
+    Memcard *memcard = R13_PTR(MEMCARD);
+    memcard->TM_LabCPUCounterAir = value;
+}
+
+void Lab_ChangeCounterAction_Shield(GOBJ *menu_gobj, int value) {
+    Memcard *memcard = R13_PTR(MEMCARD);
+    memcard->TM_LabCPUCounterShield = value;
+}
+
+void Lab_ChangeOverlays(GOBJ *menu_gobj, int value) {
+    Memcard *memcard = R13_PTR(MEMCARD);
+
+    memset(&memcard->TM_LabSavedOverlays_HMN, 0, sizeof(memcard->TM_LabSavedOverlays_HMN));
+    memset(&memcard->TM_LabSavedOverlays_CPU, 0, sizeof(memcard->TM_LabSavedOverlays_CPU));
+
+    int overlay_save_count = sizeof(memcard->TM_LabSavedOverlays_HMN) / sizeof(OverlaySave);
+    int overlay_save_idx_hmn = 0;
+    int overlay_save_idx_cpu = 0;
+    for (u8 group = 0; group < OVERLAY_COUNT; ++group) {
+        u8 overlay_hmn = LabOptions_OverlaysHMN[group].option_val;
+        u8 overlay_cpu = LabOptions_OverlaysCPU[group].option_val;
+
+        if (overlay_hmn != 0 && overlay_save_idx_hmn < overlay_save_count) {
+            memcard->TM_LabSavedOverlays_HMN[overlay_save_idx_hmn] = (OverlaySave) { group, overlay_hmn };
+            overlay_save_idx_hmn += 1;
+        }
+
+        if (overlay_cpu != 0 && overlay_save_idx_cpu < overlay_save_count) {
+            memcard->TM_LabSavedOverlays_CPU[overlay_save_idx_cpu] = (OverlaySave) { group, overlay_cpu };
+            overlay_save_idx_cpu += 1;
+        }
+    }
+}
+
 void Lab_ChangePlayerPercent(GOBJ *menu_gobj, int value)
 {
     GOBJ *fighter = Fighter_GetGObj(0);
@@ -75,6 +123,31 @@ void Lab_ChangePlayerLockPercent(GOBJ *menu_gobj, int value)
         hmn_locked_percent = fighter_data->dmg.percent;
 
     return;
+}
+
+void Lab_StartMoveCPU(GOBJ *menu_gobj) {
+    lab_state = LabState_SetCPUPosition;
+    LabOptions_CPU[OPTCPU_SET_POS] = LabOptions_CPU_FinishMoveCPU;
+
+    GOBJ *hmn = Fighter_GetGObj(0);
+    GOBJ *cpu = Fighter_GetGObj(1);
+    FighterData *cpu_data = cpu->userdata;
+    FighterData *hmn_data = hmn->userdata;
+
+    cpu_data->cpu.ai = 15;
+    hmn_data->pad_index = stc_null_controller;
+}
+
+void Lab_FinishMoveCPU(GOBJ *menu_gobj) {
+    lab_state = LabState_Normal;
+    LabOptions_CPU[OPTCPU_SET_POS] = LabOptions_CPU_MoveCPU;
+
+    GOBJ *hmn = Fighter_GetGObj(0);
+    GOBJ *cpu = Fighter_GetGObj(1);
+    FighterData *cpu_data = cpu->userdata;
+    FighterData *hmn_data = hmn->userdata;
+
+    hmn_data->pad_index = stc_hmn_controller;
 }
 
 void Lab_ChangeFrameAdvance(GOBJ *menu_gobj, int value)
@@ -479,6 +552,23 @@ void InfoDisplay_Update(GOBJ *menu_gobj, EventOption menu[], GOBJ *fighter, GOBJ
                         int posStart;
                         int nameSize = 0;
                         char *symbol = action->anim_symbol;
+
+                        // extract from the opponent fighter actions if there is no symbol in the fighter action (e.g. getting Yoshi's Neutral-B, Mewtwo's Side-B, Bowser's Side-B, etc.)
+                        if (symbol == NULL) {
+                            // loop through all humans
+                            for (int i = 0; i < 6; i++) {
+                                if (i == fighter_data->ply) { continue; }
+
+                                GOBJ *other_fighter = Fighter_GetGObj(i);
+                                if (other_fighter == 0) { continue; }
+
+                                FighterData *other_fighter_data = other_fighter->userdata;
+                                action = Fighter_GetFtAction(other_fighter_data, fighter_data->action_id);
+                                symbol = action->anim_symbol;
+                                if (symbol != NULL) { break; }
+                            }
+                        }
+
                         for (int i = 0; pos < 50; pos++)
                         {
                             // search for "N_"
@@ -3075,7 +3165,7 @@ GOBJ *Record_Init()
     // Create GOBJ
     GOBJ *rec_gobj = GObj_Create(0, 7, 0);
     // Add per frame process
-    GObj_AddProc(rec_gobj, Record_Think, 0);
+    GObj_AddProc(rec_gobj, Record_Think, 1);
 
     // create cobj
     GOBJ *cam_gobj = GObj_Create(19, 20, 0);
@@ -5213,6 +5303,9 @@ static void UpdateOverlays(GOBJ *character, EventOption *overlays) {
             if (ov.occur_once && *overlay_running == j)
                 return;
 
+            memset(&data->color[1], 0, sizeof(ColorOverlay));
+            memset(&data->color[0], 0, sizeof(ColorOverlay));
+
             *overlay_running = j;
             data->color[1].hex = ov.color;
             data->color[1].color_enable = 1;
@@ -5269,6 +5362,22 @@ void Event_Init(GOBJ *gobj)
 
     Memcard *memcard = R13_PTR(MEMCARD);
     LabOptions_General[OPTGEN_FRAMEBTN].option_val = memcard->TM_LabFrameAdvanceButton;
+    LabOptions_CPU[OPTCPU_CTRGRND].option_val = memcard->TM_LabCPUCounterGround;
+    LabOptions_CPU[OPTCPU_CTRAIR].option_val = memcard->TM_LabCPUCounterAir;
+    LabOptions_CPU[OPTCPU_CTRSHIELD].option_val = memcard->TM_LabCPUCounterShield;
+    LabOptions_General[OPTGEN_INPUT].option_val = memcard->TM_LabCPUInputDisplay;
+
+    int overlay_save_count = sizeof(memcard->TM_LabSavedOverlays_HMN) / sizeof(OverlaySave);
+    for (int i = 0; i < overlay_save_count; ++i) {
+        OverlaySave save_hmn = memcard->TM_LabSavedOverlays_HMN[i];
+        OverlaySave save_cpu = memcard->TM_LabSavedOverlays_CPU[i];
+
+        if (save_hmn.overlay != 0)
+            LabOptions_OverlaysHMN[save_hmn.group].option_val = save_hmn.overlay;
+
+        if (save_cpu.overlay != 0)
+            LabOptions_OverlaysCPU[save_cpu.group].option_val = save_cpu.overlay;
+    }
 
     // theres got to be a better way to do this...
     event_vars = *event_vars_ptr;
@@ -5285,7 +5394,7 @@ void Event_Init(GOBJ *gobj)
     InfoDisplay_Update(infodisp_gobj_cpu, LabOptions_InfoDisplayCPU, Fighter_GetGObj(1), infodisp_gobj_hmn);
 
     // Init DIDraw
-    //DIDraw_Init();
+    DIDraw_Init();
 
     // Init Recording
     Record_Init();
@@ -5325,6 +5434,12 @@ void Event_Init(GOBJ *gobj)
 // Update Function
 void Event_Update()
 {
+    GOBJ *hmn = Fighter_GetGObj(0);
+    FighterData *hmn_data = hmn->userdata;
+    HSD_Pad *pad = PadGet(hmn_data->pad_index, PADGET_MASTER);
+    GOBJ *cpu = Fighter_GetGObj(1);
+    FighterData *cpu_data = cpu->userdata;
+
     if (Pause_CheckStatus(1) != 2) {
         float speed = LabOptions_GameSpeeds[LabOptions_General[OPTGEN_SPEED].option_val];
         HSD_SetSpeedEasy(speed);
@@ -5333,7 +5448,7 @@ void Event_Update()
     }
 
     // update DI draw
-    //DIDraw_Update();
+    DIDraw_Update();
 
     // update info display
     InfoDisplay_Update(infodisp_gobj_hmn, LabOptions_InfoDisplayHMN, Fighter_GetGObj(0), NULL);
@@ -5346,99 +5461,13 @@ void Event_Update()
     Savestates_Update();
 }
 
-// Think Function
-void Event_Think(GOBJ *event)
-{
+void Event_Think_LabState_Normal(GOBJ *event) {
     LabData *eventData = event->userdata;
-
-    // get fighter data
     GOBJ *hmn = Fighter_GetGObj(0);
     FighterData *hmn_data = hmn->userdata;
     GOBJ *cpu = Fighter_GetGObj(1);
     FighterData *cpu_data = cpu->userdata;
     HSD_Pad *pad = PadGet(hmn_data->pad_index, PADGET_ENGINE);
-
-    // lock percent if enabled
-    if (LabOptions_CPU[OPTCPU_LOCKPCNT].option_val)
-    {
-        cpu_data->dmg.percent = cpu_locked_percent;
-        Fighter_SetHUDDamage(1, cpu_locked_percent);
-    }
-
-    if (LabOptions_General[OPTGEN_HMNPCNTLOCK].option_val)
-    {
-        hmn_data->dmg.percent = hmn_locked_percent;
-        Fighter_SetHUDDamage(0, hmn_locked_percent);
-    }        
-
-    // update menu's percent
-    LabOptions_General[OPTGEN_HMNPCNT].option_val = hmn_data->dmg.percent;
-    LabOptions_CPU[OPTCPU_PCNT].option_val = cpu_data->dmg.percent;
-    
-    // reset stale moves
-    if (LabOptions_General[OPTGEN_STALE].option_val == 0)
-    {
-        for (int i = 0; i < 6; i++)
-        {
-            // check if fighter exists
-            GOBJ *fighter = Fighter_GetGObj(i);
-            if (fighter != 0)
-            {
-                // reset stale move table
-                int *staleMoveTable = Fighter_GetStaleMoveTable(i);
-                memset(staleMoveTable, 0, 0x2C);
-            }
-        }
-    }
-
-    // apply intangibility
-    if (LabOptions_CPU[OPTCPU_INTANG].option_val == 1)
-    {
-        cpu_data->flags.no_reaction_always = 1;
-        cpu_data->flags.nudge_disable = 1;
-        cpu_data->grab.vuln = 0x1FF;
-        cpu_data->dmg.percent = 0;
-        Fighter_SetHUDDamage(cpu_data->ply, 0);
-
-        // if new state, apply colanim
-        if (cpu_data->TM.state_frame <= 1)
-        {
-            Fighter_ColAnim_Apply(cpu_data, INTANG_COLANIM, 0);
-        }
-    }
-    else
-    {
-        cpu_data->flags.no_reaction_always = 0;
-        cpu_data->flags.nudge_disable = 0;
-    }
-
-    // apply invisibility
-    int invisible = LabOptions_Tech[OPTTECH_INVISIBLE].option_val;
-    if (invisible) {
-        if (is_tech_anim(cpu_data->state_id))
-        {
-            // get distinguishable frame from lookup table
-            int char_id = cpu_data->kind;
-            if (char_id >= sizeof(tech_frame_distinguishable)/sizeof(*tech_frame_distinguishable))
-                assert("invalid character kind causing read out of bounds");
-
-            int frame_distinguishable = tech_frame_distinguishable[char_id];
-
-            // apply if tech anim is after distinguishable frame and invulnerable
-            if (frame_distinguishable != -1) {
-                int state_frame = cpu_data->TM.state_frame;
-
-                int after = state_frame > frame_distinguishable;
-                int vuln = cpu_data->TM.state_frame >= 19;
-
-                cpu_data->flags.invisible = frame_distinguishable < state_frame && state_frame < 20;
-
-                int sound = LabOptions_Tech[OPTTECH_SOUND].option_val;
-                if (sound && state_frame == frame_distinguishable)
-                    SFX_PlayCommon(1);
-            }
-        }
-    }
 
     static int move_timer = 0;
     const int MOVE_THRESHOLD = 10;
@@ -5665,9 +5694,127 @@ void Event_Think(GOBJ *event)
             }
         }
     }
-
-    return;
 }
+
+// Think Function
+void Event_Think(GOBJ *event)
+{
+    LabData *eventData = event->userdata;
+
+    // get fighter data
+    GOBJ *hmn = Fighter_GetGObj(0);
+    FighterData *hmn_data = hmn->userdata;
+    GOBJ *cpu = Fighter_GetGObj(1);
+    FighterData *cpu_data = cpu->userdata;
+    HSD_Pad *pad = PadGet(hmn_data->pad_index, PADGET_ENGINE);
+
+    // Disable the D-pad up button according to the OPTGEN_TAUNT value
+    if (LabOptions_General[OPTGEN_TAUNT].option_val == 1)
+    {
+      pad->held &= ~PAD_BUTTON_DPAD_UP;
+    }
+
+    // lock percent if enabled
+    if (LabOptions_CPU[OPTCPU_LOCKPCNT].option_val)
+    {
+        cpu_data->dmg.percent = cpu_locked_percent;
+        Fighter_SetHUDDamage(1, cpu_locked_percent);
+    }
+
+    if (LabOptions_General[OPTGEN_HMNPCNTLOCK].option_val)
+    {
+        hmn_data->dmg.percent = hmn_locked_percent;
+        Fighter_SetHUDDamage(0, hmn_locked_percent);
+    }        
+
+    // update menu's percent
+    LabOptions_General[OPTGEN_HMNPCNT].option_val = hmn_data->dmg.percent;
+    LabOptions_CPU[OPTCPU_PCNT].option_val = cpu_data->dmg.percent;
+    
+    // reset stale moves
+    if (LabOptions_General[OPTGEN_STALE].option_val == 0)
+    {
+        for (int i = 0; i < 6; i++)
+        {
+            // check if fighter exists
+            GOBJ *fighter = Fighter_GetGObj(i);
+            if (fighter != 0)
+            {
+                // reset stale move table
+                int *staleMoveTable = Fighter_GetStaleMoveTable(i);
+                memset(staleMoveTable, 0, 0x2C);
+            }
+        }
+    }
+
+    // apply intangibility
+    if (LabOptions_CPU[OPTCPU_INTANG].option_val == 1)
+    {
+        cpu_data->flags.no_reaction_always = 1;
+        cpu_data->flags.nudge_disable = 1;
+        cpu_data->grab.vuln = 0x1FF;
+        cpu_data->dmg.percent = 0;
+        Fighter_SetHUDDamage(cpu_data->ply, 0);
+
+        // if new state, apply colanim
+        if (cpu_data->TM.state_frame <= 1)
+        {
+            Fighter_ColAnim_Apply(cpu_data, INTANG_COLANIM, 0);
+        }
+    }
+    else
+    {
+        cpu_data->flags.no_reaction_always = 0;
+        cpu_data->flags.nudge_disable = 0;
+    }
+
+    // apply invisibility
+    int invisible = LabOptions_Tech[OPTTECH_INVISIBLE].option_val;
+    if (invisible) {
+        if (is_tech_anim(cpu_data->state_id))
+        {
+            // get distinguishable frame from lookup table
+            int char_id = cpu_data->kind;
+            if (char_id >= sizeof(tech_frame_distinguishable)/sizeof(*tech_frame_distinguishable))
+                assert("invalid character kind causing read out of bounds");
+
+            int frame_distinguishable = tech_frame_distinguishable[char_id];
+
+            // apply if tech anim is after distinguishable frame and invulnerable
+            if (frame_distinguishable != -1) {
+                int state_frame = cpu_data->TM.state_frame;
+
+                int after = state_frame > frame_distinguishable;
+                int vuln = cpu_data->TM.state_frame >= 19;
+
+                cpu_data->flags.invisible = frame_distinguishable < state_frame && state_frame < 20;
+
+                int sound = LabOptions_Tech[OPTTECH_SOUND].option_val;
+                if (sound && state_frame == frame_distinguishable)
+                    SFX_PlayCommon(1);
+            }
+        }
+    }
+
+    switch (lab_state) {
+        case LabState_Normal:
+            Event_Think_LabState_Normal(event);
+            break;
+        case LabState_SetCPUPosition:
+            if (cpu_data->phys.air_state == 0) // if is grounded
+                Fighter_EnterFall(cpu);
+
+            Fighter_KillAllVelocity(cpu);
+            cpu_data->phys.pos.Y += cpu_data->attr.gravity; // remove small initial gravity delta
+
+            HSD_Pad *pad = PadGet(stc_hmn_controller, PADGET_MASTER);
+            cpu_data->phys.pos.X += pad->fstickX * 1.5;
+            cpu_data->phys.pos.Y += pad->fstickY * 1.5;
+
+            break;
+    }
+}
+
 // Initial Menu
 EventMenu *Event_Menu = &LabMenu_Main;
 

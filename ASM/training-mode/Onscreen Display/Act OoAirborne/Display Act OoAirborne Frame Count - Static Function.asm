@@ -7,7 +7,11 @@
 
     backup
 
-    # This static function needs to store Interrupt Bool to r3 and store player to r4 before being called
+    # This static function requires before being called:
+    # - store Interrupt Bool to r3
+    # - store player to r4
+    # - store the address of a text data for OSD to r6
+    # - store the OSD kind ID to r10
     mr player, r4
     lwz playerdata, 0x2c(player)
 
@@ -16,7 +20,7 @@
     beq Exit
 
     # CHECK IF ENABLED
-    li r0, OSD.ActOoJump
+    li r0, OSD.ActOoAirborne
     lwz r4, -0x77C0(r13)
     lwz r4, 0x1F24(r4)
     li r3, 1
@@ -33,6 +37,11 @@ CheckForFollower:
 
 CheckForPreviousActionState:
     lhz r3, TM_OneASAgo(playerdata)
+    lhz r7, TM_FramesinOneASAgo(playerdata)
+    cmpwi r3, ASID_Pass
+    beq CheckForPreviousFrame
+    cmpwi r3, ASID_Fall
+    beq CheckForNecessarySituationForOoFall
     cmpwi r3, ASID_JumpF
     beq PreviousStateIsJump
     cmpwi r3, ASID_JumpB
@@ -41,19 +50,27 @@ CheckForPreviousActionState:
     beq PreviousStateIsDoubleJump
     cmpwi r3, ASID_JumpAerialB
     beq PreviousStateIsDoubleJump
-    b Exit
+    # Aerial jump state IDs are 0x155, 0x156, 0x157, 0x158, 0x159 for fighters which have multiple jumps (Jigglypuff, Kirby)
+    lwz r4, 0x168(playerdata) # load max_jumps
+    cmpwi r4, 0x2
+    ble Exit
+    cmpwi r3, 0x155 # first aerial jump
+    blt Exit
+    cmpwi r3, 0x159 # last(5th) aerial jump
+    bgt Exit
+    b PreviousStateIsDoubleJump
+
 
 PreviousStateIsJump:
     lfs f1, 0x150(playerdata)  # get jump_v_initial_velocity
-    b CheckForCutoffFrames
+    b CheckForCutoffFramesForOoJump
 
 PreviousStateIsDoubleJump:
     lfs f1, 0x150(playerdata)  # get jump_v_initial_velocity
     lfs f2, 0x160(playerdata)  # get air_jump_v_multiplier
     fmuls f1, f1, f2           # calculate double jump vertical initial velocity
 
-CheckForCutoffFrames:
-    lhz r7, TM_FramesinOneASAgo(playerdata)
+CheckForCutoffFramesForOoJump:
     # Disable OSD if the act is after frames to reach the peak of fighter's jump (+ some additional frames)
     lfs f2, 0x16C(playerdata)  # get gravity
     fdivs f1, f1, f2           # calculate frames to reach the peak of fighter's jump
@@ -63,6 +80,31 @@ CheckForCutoffFrames:
     addi r4, r4, 0x5           # add some frames
     cmpw r7, r4
     bgt Exit
+    b CheckForPreviousFrame
+
+
+CheckForNecessarySituationForOoFall:
+    cmpwi r7, 10  # Cutoff by frames
+    bgt Exit
+    # Cutoff by action states before fall which don't need OSD
+    lhz r3, TM_TwoASAgo(playerdata)
+    cmpwi r3, ASID_JumpF
+    beq Exit
+    cmpwi r3, ASID_JumpB
+    beq Exit
+    cmpwi r3, ASID_AttackAirN
+    beq Exit
+    cmpwi r3, ASID_AttackAirF
+    beq Exit
+    cmpwi r3, ASID_AttackAirB
+    beq Exit
+    cmpwi r3, ASID_AttackAirHi
+    beq Exit
+    cmpwi r3, ASID_AttackAirLw
+    beq Exit
+    cmpwi r3, ASID_BarrelCannonWait  # for ignoring special moves mainly
+    bgt Exit
+    b CheckForPreviousFrame
 
 
 CheckForPreviousFrame:
@@ -71,73 +113,17 @@ CheckForPreviousFrame:
 
 GreenText:
     load r5, MSGCOLOR_GREEN
-    b CheckForDoubleJump
+    b DisplayText
 
 RedText:
     load r5, MSGCOLOR_RED
 
-
-CheckForDoubleJump:
-    lwz r3, 0x10(playerdata) # load current action state ID
-    cmpwi r3, ASID_JumpAerialF
-    beq DoubleJump
-    cmpwi r3, ASID_JumpAerialB
-    beq DoubleJump
-
-CheckForAerial:
-    cmpwi r3, ASID_AttackAirN
-    blt CheckForSpecialMove
-    cmpwi r3, ASID_AttackAirLw
-    bgt CheckForSpecialMove
-    b Aerial
-
-CheckForSpecialMove:
-    cmpwi r3, ASID_BarrelCannonWait
-    ble Exit
-    b SpecialMove
-
-DoubleJump:
-    li r3, OSD.Miscellaneous    # message kind / Originally OSD.ActOoJump is natural, but use other ID to show at the same time as Aerial OoJump for fighters with DoubleJump cancel techniques
-    bl DoubleJumpText
-    mflr r6
-    b DisplayText
-
-Aerial:
-    li r3, OSD.ActOoJump        # message kind
-    bl AerialText
-    mflr r6
-    b DisplayText
-
-SpecialMove:
-    li r3, OSD.ActOoJump        # message kind
-    bl SpecialMoveText
-    mflr r6
-
 DisplayText:
+    mr r3, r10                  # message kind
     lbz r4, 0xC(playerdata)     # message queue
     Message_Display
     b Exit
 
-###################
-## TEXT CONTENTS ##
-###################
-
-DoubleJumpText:
-    blrl
-    .string "DoubleJump OoJump\nFrame %d"
-    .align 2
-
-AerialText:
-    blrl
-    .string "Aerial OoJump\nFrame %d"
-    .align 2
-
-SpecialMoveText:
-    blrl
-    .string "Special OoJump\nFrame %d"
-    .align 2
-
-##############################
 
 Exit:
     restore

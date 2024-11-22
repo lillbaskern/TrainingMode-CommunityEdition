@@ -60,6 +60,11 @@ enum custom_asid_groups
     ASID_ANY,
 };
 
+typedef enum lab_state {
+    LabState_Normal,
+    LabState_SetCPUPosition,
+} LabState;
+
 // ACTIONS #################################################
 
 // CPU Action Definitions
@@ -764,6 +769,7 @@ enum gen_option
     OPTGEN_INPUT,
     OPTGEN_SPEED,
     OPTGEN_STALE,
+    OPTGEN_TAUNT,
 
     OPTGEN_COUNT
 };
@@ -876,6 +882,7 @@ static EventOption LabOptions_General[OPTGEN_COUNT] = {
         .option_name = "Input Display",
         .desc = "Display player inputs onscreen.",
         .option_values = LabOptions_ShowInputs,
+        .onOptionChange = Lab_ChangeInputDisplay,
     },
     {
         .option_kind = OPTKIND_STRING,
@@ -890,6 +897,14 @@ static EventOption LabOptions_General[OPTGEN_COUNT] = {
         .option_val = 1,
         .option_name = "Move Staling",
         .desc = "Toggle the staling of moves. Attacks become \nweaker the more they are used.",
+        .option_values = LabOptions_OffOn,
+    },
+    {
+        .option_kind = OPTKIND_STRING,
+        .value_num = 2,
+        .option_val = 1,
+        .option_name = "Disable Taunt",
+        .desc = "Disable the taunt button (D-pad up)",
         .option_values = LabOptions_OffOn,
     },
 };
@@ -1192,6 +1207,7 @@ enum cpu_option
     OPTCPU_CTRFRAMES,
     OPTCPU_CTRHITS,
     OPTCPU_SHIELDHITS,
+    OPTCPU_SET_POS,
 
     OPTCPU_COUNT
 };
@@ -1232,6 +1248,20 @@ static char *LabValues_Tech[] = {"Random", "Neutral", "Away", "Towards", "None"}
 static char *LabValues_Getup[] = {"Random", "Stand", "Away", "Towards", "Attack"};
 static char *LabValues_GrabEscape[] = {"None", "Medium", "High", "Perfect"};
 static char *LabValues_LockCPUPercent[] = {"Off", "On"};
+
+static const EventOption LabOptions_CPU_MoveCPU = {
+    .option_kind = OPTKIND_FUNC,
+    .option_name = "Move CPU",
+    .desc = "Manually set the CPU's position.",
+    .onOptionSelect = Lab_StartMoveCPU,
+};
+
+static const EventOption LabOptions_CPU_FinishMoveCPU = {
+    .option_kind = OPTKIND_FUNC,
+    .option_name = "Finish Moving CPU",
+    .desc = "Finish setting the CPU's position.",
+    .onOptionSelect = Lab_FinishMoveCPU,
+};
 
 static EventOption LabOptions_CPU[OPTCPU_COUNT] = {
     {
@@ -1335,6 +1365,7 @@ static EventOption LabOptions_CPU[OPTCPU_COUNT] = {
         .option_name = "Counter Action (Ground)",
         .desc = "Select the action to be performed after a\ngrounded CPU's hitstun ends.",
         .option_values = LabValues_CounterGround,
+        .onOptionChange = Lab_ChangeCounterAction_Ground,
     },
     {
         .option_kind = OPTKIND_STRING,
@@ -1343,6 +1374,7 @@ static EventOption LabOptions_CPU[OPTCPU_COUNT] = {
         .option_name = "Counter Action (Air)",
         .desc = "Select the action to be performed after an\nairborne CPU's hitstun ends.",
         .option_values = LabValues_CounterAir,
+        .onOptionChange = Lab_ChangeCounterAction_Air,
     },
     {
         .option_kind = OPTKIND_STRING,
@@ -1351,6 +1383,7 @@ static EventOption LabOptions_CPU[OPTCPU_COUNT] = {
         .option_name = "Counter Action (Shield)",
         .desc = "Select the action to be performed after the\nCPU's shield is hit.",
         .option_values = LabValues_CounterShield,
+        .onOptionChange = Lab_ChangeCounterAction_Shield,
     },
     {
         .option_kind = OPTKIND_INT,
@@ -1375,6 +1408,9 @@ static EventOption LabOptions_CPU[OPTCPU_COUNT] = {
         .desc = "Adjust the amount of hits the CPU's shield\nwill take before they counter.",
         .option_values = "%d Hits",
     },
+
+    // swapped between LabOptions_CPU_MoveCPU and LabOptions_CPU_FinishMoveCPU
+    LabOptions_CPU_MoveCPU,
 };
 
 static EventMenu LabMenu_CPU = {
@@ -1906,6 +1942,7 @@ static EventOption LabOptions_OverlaysDefault[OVERLAY_COUNT] = {
         .option_name = "Actionable",
         .desc = "",
         .option_values = LabValues_OverlayNames,
+        .onOptionChange = Lab_ChangeOverlays,
     },
     {
         .option_kind = OPTKIND_STRING,
@@ -1913,6 +1950,7 @@ static EventOption LabOptions_OverlaysDefault[OVERLAY_COUNT] = {
         .option_name = "Hitstun",
         .desc = "",
         .option_values = LabValues_OverlayNames,
+        .onOptionChange = Lab_ChangeOverlays,
     },
     {
         .option_kind = OPTKIND_STRING,
@@ -1920,6 +1958,7 @@ static EventOption LabOptions_OverlaysDefault[OVERLAY_COUNT] = {
         .option_name = "Invincible",
         .desc = "",
         .option_values = LabValues_OverlayNames,
+        .onOptionChange = Lab_ChangeOverlays,
     },
     {
         .option_kind = OPTKIND_STRING,
@@ -1927,6 +1966,7 @@ static EventOption LabOptions_OverlaysDefault[OVERLAY_COUNT] = {
         .option_name = "Ledge Actionable",
         .desc = "",
         .option_values = LabValues_OverlayNames,
+        .onOptionChange = Lab_ChangeOverlays,
     },
     {
         .option_kind = OPTKIND_STRING,
@@ -1934,6 +1974,7 @@ static EventOption LabOptions_OverlaysDefault[OVERLAY_COUNT] = {
         .option_name = "Missed L-Cancel",
         .desc = "",
         .option_values = LabValues_OverlayNames,
+        .onOptionChange = Lab_ChangeOverlays,
     },
     {
         .option_kind = OPTKIND_STRING,
@@ -1941,6 +1982,7 @@ static EventOption LabOptions_OverlaysDefault[OVERLAY_COUNT] = {
         .option_name = "Can Fastfall",
         .desc = "",
         .option_values = LabValues_OverlayNames,
+        .onOptionChange = Lab_ChangeOverlays,
     },
     {
         .option_kind = OPTKIND_STRING,
@@ -1948,6 +1990,7 @@ static EventOption LabOptions_OverlaysDefault[OVERLAY_COUNT] = {
         .option_name = "Autocancel",
         .desc = "",
         .option_values = LabValues_OverlayNames,
+        .onOptionChange = Lab_ChangeOverlays,
     },
     {
         .option_kind = OPTKIND_STRING,
@@ -1955,6 +1998,7 @@ static EventOption LabOptions_OverlaysDefault[OVERLAY_COUNT] = {
         .option_name = "Crouch",
         .desc = "",
         .option_values = LabValues_OverlayNames,
+        .onOptionChange = Lab_ChangeOverlays,
     },
     {
         .option_kind = OPTKIND_STRING,
@@ -1962,6 +2006,7 @@ static EventOption LabOptions_OverlaysDefault[OVERLAY_COUNT] = {
         .option_name = "Wait",
         .desc = "",
         .option_values = LabValues_OverlayNames,
+        .onOptionChange = Lab_ChangeOverlays,
     },
     {
         .option_kind = OPTKIND_STRING,
@@ -1969,6 +2014,7 @@ static EventOption LabOptions_OverlaysDefault[OVERLAY_COUNT] = {
         .option_name = "Walk",
         .desc = "",
         .option_values = LabValues_OverlayNames,
+        .onOptionChange = Lab_ChangeOverlays,
     },
     {
         .option_kind = OPTKIND_STRING,
@@ -1976,6 +2022,7 @@ static EventOption LabOptions_OverlaysDefault[OVERLAY_COUNT] = {
         .option_name = "Dash",
         .desc = "",
         .option_values = LabValues_OverlayNames,
+        .onOptionChange = Lab_ChangeOverlays,
     },
     {
         .option_kind = OPTKIND_STRING,
@@ -1983,6 +2030,7 @@ static EventOption LabOptions_OverlaysDefault[OVERLAY_COUNT] = {
         .option_name = "Run",
         .desc = "",
         .option_values = LabValues_OverlayNames,
+        .onOptionChange = Lab_ChangeOverlays,
     },
     {
         .option_kind = OPTKIND_STRING,
@@ -1990,6 +2038,7 @@ static EventOption LabOptions_OverlaysDefault[OVERLAY_COUNT] = {
         .option_name = "Double Jump",
         .desc = "",
         .option_values = LabValues_OverlayNames,
+        .onOptionChange = Lab_ChangeOverlays,
     },
     {
         .option_kind = OPTKIND_STRING,
@@ -1997,6 +2046,7 @@ static EventOption LabOptions_OverlaysDefault[OVERLAY_COUNT] = {
         .option_name = "Full Hop",
         .desc = "",
         .option_values = LabValues_OverlayNames,
+        .onOptionChange = Lab_ChangeOverlays,
     },
     {
         .option_kind = OPTKIND_STRING,
@@ -2004,6 +2054,7 @@ static EventOption LabOptions_OverlaysDefault[OVERLAY_COUNT] = {
         .option_name = "Short Hop",
         .desc = "",
         .option_values = LabValues_OverlayNames,
+        .onOptionChange = Lab_ChangeOverlays,
     },
     {
         .option_kind = OPTKIND_STRING,
@@ -2011,6 +2062,7 @@ static EventOption LabOptions_OverlaysDefault[OVERLAY_COUNT] = {
         .option_name = "IASA",
         .desc = "",
         .option_values = LabValues_OverlayNames,
+        .onOptionChange = Lab_ChangeOverlays,
     },
 };
 
