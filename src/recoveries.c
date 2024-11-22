@@ -186,9 +186,6 @@ Recover_Ret Recover_Think(GOBJ *cpu, GOBJ *hmn) {
     FighterData *cpu_data = cpu->userdata;
     FighterData *hmn_data = hmn->userdata;
 
-    if (cpu_data->phys.air_state == 0) // is grounded
-        return RECOVER_FINISHED;
-    
     Vec2 ledges[2];
     Recover_LedgeCoords(ledges);
     float xpos = cpu_data->phys.pos.X;
@@ -203,9 +200,16 @@ Recover_Ret Recover_Think(GOBJ *cpu, GOBJ *hmn) {
         data.direction = -1;
     data.jumps = cpu_data->attr.max_jumps - cpu_data->jump.jumps_used;
 
-    if (cpu_data->state_id == ASID_CLIFFWAIT)
+    // normal getup from ledge
+    if (cpu_data->state_id == ASID_CLIFFWAIT && cpu_data->state.frame == 1) {
         cpu_data->cpu.lstickX = 127 * data.direction;
         return RECOVER_IN_PROGRESS;
+    } else if (ASID_CLIFFCATCH <= cpu_data->state_id && cpu_data->state_id <= ASID_CLIFFJUMPQUICK2) {
+        return RECOVER_IN_PROGRESS;
+    }
+
+    if (cpu_data->phys.air_state == 0) // is grounded
+        return RECOVER_FINISHED;
 
     switch (cpu_data->kind) {
         case FTKIND_FOX:
