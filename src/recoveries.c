@@ -141,7 +141,7 @@ void Recover_ThinkFox(Recover_Data *rec_data, GOBJ *cpu, GOBJ *hmn) {
     int state = cpu_data->state_id;
     int frame = (int)(cpu_data->state.frame / cpu_data->state.rate);
 
-    Vec2 ledge_grab_offset = { -15.0 * rec_data->direction, -7.0 };
+    Vec2 ledge_grab_offset = { -10.0 * rec_data->direction, -7.0 };
     Vec2 ledge_grab_point = Vec2_add(rec_data->ledge, ledge_grab_offset);
     Recover_DebugPointSet(0, ledge_grab_point, 1);
     Vec2 vec_to_ledge_grab = Vec2_sub(ledge_grab_point, pos);
@@ -202,6 +202,10 @@ Recover_Ret Recover_Think(GOBJ *cpu, GOBJ *hmn) {
     else
         data.direction = -1;
     data.jumps = cpu_data->attr.max_jumps - cpu_data->jump.jumps_used;
+
+    if (cpu_data->state_id == ASID_CLIFFWAIT)
+        cpu_data->cpu.lstickX = 127 * data.direction;
+        return RECOVER_IN_PROGRESS;
 
     switch (cpu_data->kind) {
         case FTKIND_FOX:
