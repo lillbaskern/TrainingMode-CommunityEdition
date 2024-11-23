@@ -203,7 +203,7 @@
 
     .macro Event_LedgeTech_Description
     # Ledge-Tech Training
-    .string "Practice ledge-teching Falco's down-smash"
+    .string "Practice ledge-teching Falco's down-smash!"
     .endm
 
     .macro Event_LedgeTech_PlayableCharacters
