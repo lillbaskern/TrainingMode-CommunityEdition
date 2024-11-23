@@ -45,8 +45,9 @@
     bl ShortHopString
     mflr r8
     lwz r9, TM_ShortOrFullHop(REG_FighterData)
-    cmpwi r9, 0
-    bne EndShortOrFullHop
+    cmpwi r9, 1
+    bgt PrintMessage_NoHopType
+    beq EndShortOrFullHop
     bl FullHopString
     mflr r8
 EndShortOrFullHop:
@@ -72,17 +73,16 @@ JumpInputsLoop:
     cmpwi r9, 32
     blt JumpInputsLoop
 
-    # out of input history with no jump input - either wavedash took longer than 32 frames,
-    # or more likely some tap jump range change BS.
-    # Seems like tap jump has a different min y in some action states???
+    # Out of input history with no jump input - wavedash probably took longer than 32 frames.
+    # Nothing we can do here unless we increase the input history range.
 
-    # IDK what to do here. Hopefully this never occurs.
-    li r9, -0xFF
+    b PrintMessage_NoHopType
 
 EndJumpInputsLoop:
     lbz r10, 0x685(REG_FighterData) # timer_jump
     sub r9, r10, r9 # get jump held frames
     addi r9, r9, 1 # 1-index
+    b PrintMessage
 
 PrintMessage:
     li r3, 0                        # Message Kind
@@ -93,7 +93,32 @@ PrintMessage:
     Message_Display
     lwz r3, 0x2C(r3)
     lwz REG_Text, MsgData_Text(r3)
+    b CheckSetHopTypeColor
 
+PrintMessage_NoHopType:
+    li r3, 0                        # Message Kind
+    lbz r4, 0xC(REG_FighterData)    # Message Queue
+    li r5, MSGCOLOR_WHITE
+    bl Wavedash_String_NoHopType
+    mflr r6
+    Message_Display
+    lwz r3, 0x2C(r3)
+    lwz REG_Text, MsgData_Text(r3)
+    b SetTimingColor
+
+CheckSetHopTypeColor:
+    lwz r3, TM_ShortOrFullHop(REG_FighterData)
+    cmpwi r3, 0
+    beq SetTimingColor
+    bl Floats
+    mflr r4
+    addi r5, r4, 0xC
+    # Change Color
+    mr r3, REG_Text                 # text pointer
+    li r4, 2
+    branchl r12, Text_ChangeTextColor
+
+SetTimingColor:
     # Adjust Timing color
     lhz r3, TM_FramesinOneASAgo(REG_FighterData)
     cmpwi r3, 1
@@ -115,13 +140,13 @@ CheckSetAngleColor:
     # Check For Perfect Angle
     lfs f2, 0x0(r4)
     fcmpo cr0, f1, f2
-    blt CheckSetHopTypeColor
+    blt Exit
     lfs f2, 0x4(r4)
     fcmpo cr0, f1, f2
     blt PerfectAngle
     lfs f2, 0x8(r4)
     fcmpo cr0, f1, f2
-    bgt CheckSetHopTypeColor
+    bgt Exit
 
 OKAngle:
     addi r5, r4, 0x10
@@ -135,18 +160,6 @@ ChangeAngleColor:
     # Change Color
     mr r3, REG_Text                 # text pointer
     li r4, 1
-    branchl r12, Text_ChangeTextColor
-
-CheckSetHopTypeColor:
-    lwz r3, TM_ShortOrFullHop(REG_FighterData)
-    cmpwi r3, 0
-    beq Exit
-    bl Floats
-    mflr r4
-    addi r5, r4, 0xC
-    # Change Color
-    mr r3, REG_Text                 # text pointer
-    li r4, 2
     branchl r12, Text_ChangeTextColor
 
     b Exit
@@ -224,6 +237,11 @@ SaveAngle:
 Wavedash_String:
     blrl
     .string "Wavedash Frame: %d\nAngle: %2.1f\n%s: %df"
+    .align 2
+
+Wavedash_String_NoHopType:
+    blrl
+    .string "Wavedash Frame: %d\nAngle: %2.1f"
     .align 2
 
 ShortHopString:

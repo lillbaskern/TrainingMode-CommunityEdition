@@ -1644,7 +1644,7 @@ int Savestate_Save(Savestate *savestate)
 
     return isSaved;
 }
-int Savestate_Load(Savestate *savestate)
+int Savestate_Load(Savestate *savestate, int is_mirrored)
 {
     typedef struct BackupQueue
     {
@@ -1716,12 +1716,29 @@ int Savestate_Load(Savestate *savestate)
 
                     fighter_data->state_id = ft_data->state_id;
                     fighter_data->facing_direction = ft_data->facing_direction;
+                    if (is_mirrored)
+                    {
+                        fighter_data->facing_direction *= -1;
+                    }
                     fighter_data->state.frame = ft_data->state_frame;
                     fighter_data->state.rate = ft_data->state_rate;
                     fighter_data->state.blend = ft_data->state_blend;
 
                     // restore phys struct
                     memcpy(&fighter_data->phys, &ft_data->phys, sizeof(fighter_data->phys)); // copy physics
+                    if (is_mirrored)
+                    {
+                        fighter_data->phys.anim_vel.X *= -1;
+                        fighter_data->phys.self_vel.X *= -1;
+                        fighter_data->phys.kb_vel.X *= -1;
+                        fighter_data->phys.atk_shield_kb_vel.X *= -1;
+                        fighter_data->phys.pos.X *= -1;
+                        fighter_data->phys.pos_prev.X *= -1;
+                        fighter_data->phys.pos_delta.X *= -1;
+                        fighter_data->phys.horzitonal_velocity_queue_will_be_added_to_0xec *= -1;
+                        fighter_data->phys.self_vel_ground.X *= -1;
+                        fighter_data->phys.nudge_vel.X *= -1;
+                    }
 
                     // restore inputs
                     memcpy(&fighter_data->input, &ft_data->input, sizeof(fighter_data->input)); // copy inputs
@@ -1746,6 +1763,39 @@ int Savestate_Load(Savestate *savestate)
                     thiscoll->joint_5 = joint_5;
                     thiscoll->joint_6 = joint_6;
                     thiscoll->joint_7 = joint_7;
+                    if (is_mirrored)
+                    {
+                        thiscoll->topN_Curr.X *= -1;
+                        thiscoll->topN_CurrCorrect.X *= -1;
+                        thiscoll->topN_Prev.X *= -1;
+                        thiscoll->topN_Proj.X *= -1;
+
+                        // if the fighter is on a left/right platform, it needs to set the opposite platform's ground_index to prevent it from stucking at edge of the platform
+                        int stage_internal_id = Stage_ExternalToInternal(Stage_GetExternalID());
+                        struct {
+                            int stage_internal_id;
+                            int left_index;
+                            int right_index;
+                        } platform_ground_indices[] = {
+                            {GRKIND_STORY, 1, 5},
+                            {GRKIND_IZUMI, 0, 1},
+                            {GRKIND_PSTAD, 35, 36},
+                            {GRKIND_OLDPU, 0, 1},
+                            {GRKIND_BATTLE, 2, 4},
+                        };
+                        for (int i = 0; i < sizeof(platform_ground_indices) / sizeof(platform_ground_indices[0]); i++)
+                        {
+                            if (platform_ground_indices[i].stage_internal_id == stage_internal_id)
+                            {
+                                if (thiscoll->ground_index == platform_ground_indices[i].left_index)
+                                    thiscoll->ground_index = platform_ground_indices[i].right_index;
+                                else if (thiscoll->ground_index == platform_ground_indices[i].right_index)
+                                    thiscoll->ground_index = platform_ground_indices[i].left_index;
+
+                                break;
+                            }
+                        }
+                    }
 
                     // restore hitboxes
                     memcpy(&fighter_data->hitbox, &ft_data->hitbox, sizeof(fighter_data->hitbox));                   // copy hitbox
@@ -1798,6 +1848,19 @@ int Savestate_Load(Savestate *savestate)
 
                     // copy physics again to work around some bugs. Notably, this fixes savestates during dash.
                     memcpy(&fighter_data->phys, &ft_data->phys, sizeof(fighter_data->phys));
+                    if (is_mirrored)
+                    {
+                        fighter_data->phys.anim_vel.X *= -1;
+                        fighter_data->phys.self_vel.X *= -1;
+                        fighter_data->phys.kb_vel.X *= -1;
+                        fighter_data->phys.atk_shield_kb_vel.X *= -1;
+                        fighter_data->phys.pos.X *= -1;
+                        fighter_data->phys.pos_prev.X *= -1;
+                        fighter_data->phys.pos_delta.X *= -1;
+                        fighter_data->phys.horzitonal_velocity_queue_will_be_added_to_0xec *= -1;
+                        fighter_data->phys.self_vel_ground.X *= -1;
+                        fighter_data->phys.nudge_vel.X *= -1;
+                    }
 
                     // restore XRotN rotation
                     s8 XRotN_id = Fighter_BoneLookup(fighter_data, XRotN);
@@ -1866,6 +1929,13 @@ int Savestate_Load(Savestate *savestate)
                     void *alloc = thiscam->alloc;
                     CmSubject *next = thiscam->next;
                     memcpy(thiscam, savedcam, sizeof(ft_data->camera_subject));
+                    if (is_mirrored)
+                    {
+                        // These adjustments of mirroring camera are not perfect for now. Please fix this if you know suitable adjustments
+                        thiscam->cam_pos.X *= -1;
+                        thiscam->bone_pos.X *= -1;
+                        thiscam->direction *= -1;
+                    }
                     thiscam->alloc = alloc;
                     thiscam->next = next;
 
@@ -2090,7 +2160,7 @@ void Update_Savestates()
                 else if (((pad->down & HSD_BUTTON_DPAD_LEFT) != 0) && ((pad->held & (blacklist)) == 0))
                 {
                     // load state
-                    Savestate_Load(stc_savestate);
+                    Savestate_Load(stc_savestate, false);
                 }
             }
         }

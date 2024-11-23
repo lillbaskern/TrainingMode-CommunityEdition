@@ -1882,12 +1882,8 @@ struct FighterData
         Vec3 anim_vel;                                         // 0x74
         Vec3 self_vel;                                         // 0x80
         Vec3 kb_vel;                                           // 0x8C
-        int x98;                                               // 0x98
-        int x9c;                                               // 0x9C
-        int xa0;                                               // 0xA0
-        int xa4;                                               // 0xA4
-        int xa8;                                               // 0xA8
-        int xac;                                               // 0xAC
+        Vec3 atk_shield_kb_vel;                                // 0x98
+        Vec3 xA4;                                              // 0xA4
         Vec3 pos;                                              // 0xb0
         Vec3 pos_prev;                                         // 0xBC
         Vec3 pos_delta;                                        // 0xC8
@@ -1896,8 +1892,7 @@ struct FighterData
         float horzitonal_velocity_queue_will_be_added_to_0xec; // 0xE4
         float vertical_velocity_queue_will_be_added_to_0xec;   // 0xE8
         Vec3 self_vel_ground;                                  // 0xEC
-        int xF8;                                               // 0xF8
-        int xFC;                                               // 0xFC
+        Vec2 nudge_vel;                                        // 0xF8
         int x100;                                              // 0x100
     } phys;                                                    //
     void *x104;                                                // 0x104

@@ -50,7 +50,55 @@ const int LOCKOUT_DURATION = 30;
 static float cpu_locked_percent = 0;
 static float hmn_locked_percent = 0;
 
+static LabState lab_state = LabState_Normal;
+
 // Menu Callbacks
+
+void Lab_ChangeInputDisplay(GOBJ *menu_gobj, int value) {
+    Memcard *memcard = R13_PTR(MEMCARD);
+    memcard->TM_LabCPUInputDisplay = value;
+}
+
+void Lab_ChangeCounterAction_Ground(GOBJ *menu_gobj, int value) {
+    Memcard *memcard = R13_PTR(MEMCARD);
+    memcard->TM_LabCPUCounterGround = value;
+}
+
+void Lab_ChangeCounterAction_Air(GOBJ *menu_gobj, int value) {
+    Memcard *memcard = R13_PTR(MEMCARD);
+    memcard->TM_LabCPUCounterAir = value;
+}
+
+void Lab_ChangeCounterAction_Shield(GOBJ *menu_gobj, int value) {
+    Memcard *memcard = R13_PTR(MEMCARD);
+    memcard->TM_LabCPUCounterShield = value;
+}
+
+void Lab_ChangeOverlays(GOBJ *menu_gobj, int value) {
+    Memcard *memcard = R13_PTR(MEMCARD);
+
+    memset(&memcard->TM_LabSavedOverlays_HMN, 0, sizeof(memcard->TM_LabSavedOverlays_HMN));
+    memset(&memcard->TM_LabSavedOverlays_CPU, 0, sizeof(memcard->TM_LabSavedOverlays_CPU));
+
+    int overlay_save_count = sizeof(memcard->TM_LabSavedOverlays_HMN) / sizeof(OverlaySave);
+    int overlay_save_idx_hmn = 0;
+    int overlay_save_idx_cpu = 0;
+    for (u8 group = 0; group < OVERLAY_COUNT; ++group) {
+        u8 overlay_hmn = LabOptions_OverlaysHMN[group].option_val;
+        u8 overlay_cpu = LabOptions_OverlaysCPU[group].option_val;
+
+        if (overlay_hmn != 0 && overlay_save_idx_hmn < overlay_save_count) {
+            memcard->TM_LabSavedOverlays_HMN[overlay_save_idx_hmn] = (OverlaySave) { group, overlay_hmn };
+            overlay_save_idx_hmn += 1;
+        }
+
+        if (overlay_cpu != 0 && overlay_save_idx_cpu < overlay_save_count) {
+            memcard->TM_LabSavedOverlays_CPU[overlay_save_idx_cpu] = (OverlaySave) { group, overlay_cpu };
+            overlay_save_idx_cpu += 1;
+        }
+    }
+}
+
 void Lab_ChangePlayerPercent(GOBJ *menu_gobj, int value)
 {
     GOBJ *fighter = Fighter_GetGObj(0);
@@ -73,6 +121,31 @@ void Lab_ChangePlayerLockPercent(GOBJ *menu_gobj, int value)
         hmn_locked_percent = fighter_data->dmg.percent;
 
     return;
+}
+
+void Lab_StartMoveCPU(GOBJ *menu_gobj) {
+    lab_state = LabState_SetCPUPosition;
+    LabOptions_CPU[OPTCPU_SET_POS] = LabOptions_CPU_FinishMoveCPU;
+
+    GOBJ *hmn = Fighter_GetGObj(0);
+    GOBJ *cpu = Fighter_GetGObj(1);
+    FighterData *cpu_data = cpu->userdata;
+    FighterData *hmn_data = hmn->userdata;
+
+    cpu_data->cpu.ai = 15;
+    hmn_data->pad_index = stc_null_controller;
+}
+
+void Lab_FinishMoveCPU(GOBJ *menu_gobj) {
+    lab_state = LabState_Normal;
+    LabOptions_CPU[OPTCPU_SET_POS] = LabOptions_CPU_MoveCPU;
+
+    GOBJ *hmn = Fighter_GetGObj(0);
+    GOBJ *cpu = Fighter_GetGObj(1);
+    FighterData *cpu_data = cpu->userdata;
+    FighterData *hmn_data = hmn->userdata;
+
+    hmn_data->pad_index = stc_hmn_controller;
 }
 
 void Lab_ChangeFrameAdvance(GOBJ *menu_gobj, int value)
@@ -2046,37 +2119,6 @@ void CPUThink(GOBJ *event, GOBJ *hmn, GOBJ *cpu)
             fighter = fighter->next;
         }
     }
-
-    // update shield deterioration
-    int infShield = LabOptions_CPU[OPTCPU_SHIELD].option_val;
-    if (infShield == 1)
-    {
-        if (eventData->cpu_hitshield == 0)
-        {
-            // inf shield
-            GOBJ *fighter = gobj_lookup[MATCHPLINK_FIGHTER];
-            while (fighter != 0)
-            {
-                FighterData *fighter_data = fighter->userdata;
-                fighter_data->shield.health = 60;
-                fighter = fighter->next;
-            }
-        }
-    }
-    else if (infShield == 2)
-    {
-        // inf shield
-        GOBJ *fighter = gobj_lookup[MATCHPLINK_FIGHTER];
-        while (fighter != 0)
-        {
-            FighterData *fighter_data = fighter->userdata;
-            fighter_data->shield.health = 60;
-
-            fighter = fighter->next;
-        }
-    }
-
-    return;
 }
 int Update_CheckPause()
 {
@@ -3477,6 +3519,10 @@ void Record_Update(int ply, RecInputData *input_data, int rec_mode)
                 return;
 
             int held = 0;
+            int mirrored_playback = (
+                LabOptions_Record[OPTREC_MIRRORED_PLAYBACK].option_val &&
+                (LabOptions_Record[OPTREC_HMNMODE].option_val != RECMODE_HMN_RECORD && LabOptions_Record[OPTREC_CPUMODE].option_val != RECMODE_CPU_RECORD)
+            );
             RecInputs *inputs = &input_data->inputs[curr_frame - 1];
             // read inputs
             held |= inputs->btn_a << 8;
@@ -3490,15 +3536,15 @@ void Record_Update(int ply, RecInputData *input_data, int rec_mode)
             pad->held = held;
 
             // stick signed bytes
-            pad->stickX = inputs->stickX;
+            pad->stickX = inputs->stickX * (mirrored_playback ? -1 : 1);
             pad->stickY = inputs->stickY;
-            pad->substickX = inputs->substickX;
+            pad->substickX = inputs->substickX * (mirrored_playback ? -1 : 1);
             pad->substickY = inputs->substickY;
 
             // stick floats
-            pad->fstickX = ((float)inputs->stickX / 80);
+            pad->fstickX = ((float)inputs->stickX / 80) * (mirrored_playback ? -1 : 1);
             pad->fstickY = ((float)inputs->stickY / 80);
-            pad->fsubstickX = ((float)inputs->substickX / 80);
+            pad->fsubstickX = ((float)inputs->substickX / 80) * (mirrored_playback ? -1 : 1);
             pad->fsubstickY = ((float)inputs->substickY / 80);
 
             // trigger byte
@@ -3527,7 +3573,7 @@ void Record_ResaveState(GOBJ *menu_gobj)
     if (event_vars->Savestate_Save(rec_state))
         Record_OnSuccessfulSave(0);
 }
-void Record_DeleteState(GOBJ *menu_gobj) 
+void Record_DeleteState(GOBJ *menu_gobj)
 {
     playback_cancelled = false;
     for (int i = 0; i < sizeof(LabOptions_Record) / sizeof(EventOption); i++)
@@ -3536,6 +3582,7 @@ void Record_DeleteState(GOBJ *menu_gobj)
             LabOptions_Record[i] = Record_Save;
             LabOptions_Record[i].disable = 0;
         } else {
+            LabOptions_Record[i].option_val = (i == OPTREC_HMNSLOT || i == OPTREC_CPUSLOT) ? 1 : 0;
             LabOptions_Record[i].disable = 1;
         }
     }
@@ -3568,7 +3615,7 @@ void Record_ChangeHMNSlot(GOBJ *menu_gobj, int value)
     // upon changing to random
     if (value == 0)
     {
-        if (LabOptions_Record[OPTREC_HMNMODE].option_val == 1)
+        if (LabOptions_Record[OPTREC_HMNMODE].option_val == RECMODE_HMN_RECORD)
             LabOptions_Record[OPTREC_HMNSLOT].option_val = 1;
         else
             rec_data.hmn_rndm_slot = Record_GetRandomSlot(&rec_data.hmn_inputs, LabOptions_SlotChancesHMN);
@@ -3584,7 +3631,7 @@ void Record_ChangeCPUSlot(GOBJ *menu_gobj, int value)
     // upon changing to random
     if (value == 0)
     {
-        if (LabOptions_Record[OPTREC_CPUMODE].option_val == 2)
+        if (LabOptions_Record[OPTREC_CPUMODE].option_val == RECMODE_CPU_RECORD)
             LabOptions_Record[OPTREC_CPUSLOT].option_val = 1;
         else
             rec_data.cpu_rndm_slot = Record_GetRandomSlot(&rec_data.cpu_inputs, LabOptions_SlotChancesCPU);
@@ -3597,8 +3644,7 @@ void Record_ChangeCPUSlot(GOBJ *menu_gobj, int value)
 }
 void Record_ChangeHMNMode(GOBJ *menu_gobj, int value)
 {
-    // upon changing to record
-    if (value == 1)
+    if (value == RECMODE_HMN_RECORD)
     {
         // if set to random
         if (LabOptions_Record[OPTREC_HMNSLOT].option_val == 0)
@@ -3607,28 +3653,40 @@ void Record_ChangeHMNMode(GOBJ *menu_gobj, int value)
         }
     }
 
-    // upon changing to playback
-    if (value == 2)
+    if (value == RECMODE_HMN_PLAYBACK)
         Record_LoadSavestate();
 
-    // disable loop options if recording is in use
-    if ((LabOptions_Record[OPTREC_HMNMODE].option_val != 1) && (LabOptions_Record[OPTREC_CPUMODE].option_val != 2))
+    // disable some options if recording is in use
+    if (LabOptions_Record[OPTREC_HMNMODE].option_val == RECMODE_HMN_RECORD ||
+        LabOptions_Record[OPTREC_CPUMODE].option_val == RECMODE_CPU_RECORD)
+    {
+        LabOptions_Record[OPTREC_LOOP].option_val = 0;
+        LabOptions_Record[OPTREC_LOOP].disable = 1;
+        LabOptions_Record[OPTREC_AUTORESTORE].option_val = AUTORESTORE_NONE;
+        LabOptions_Record[OPTREC_AUTORESTORE].disable = 1;
+    }
+    else
     {
         LabOptions_Record[OPTREC_LOOP].disable = 0;
         LabOptions_Record[OPTREC_AUTORESTORE].disable = 0;
     }
+
+    // Mirrored Playback is only available in playing back and not in recording
+    if ((value == RECMODE_HMN_PLAYBACK || LabOptions_Record[OPTREC_CPUMODE].option_val == RECMODE_CPU_PLAYBACK) &&
+        (value != RECMODE_HMN_RECORD && LabOptions_Record[OPTREC_CPUMODE].option_val != RECMODE_CPU_RECORD))
+    {
+        LabOptions_Record[OPTREC_MIRRORED_PLAYBACK].disable = 0;
+    }
     else
     {
-        LabOptions_Record[OPTREC_LOOP].disable = 1;
-        LabOptions_Record[OPTREC_AUTORESTORE].disable = 1;
+        LabOptions_Record[OPTREC_MIRRORED_PLAYBACK].disable = 1;
     }
 
     return;
 }
 void Record_ChangeCPUMode(GOBJ *menu_gobj, int value)
 {
-    // upon changing to record
-    if (value == 2)
+    if (value == RECMODE_CPU_RECORD)
     {
         // if set to random
         if (LabOptions_Record[OPTREC_CPUSLOT].option_val == 0)
@@ -3638,21 +3696,52 @@ void Record_ChangeCPUMode(GOBJ *menu_gobj, int value)
         }
     }
 
-    // upon toggling playback
-    if (value == 3)
+    if (value == RECMODE_CPU_PLAYBACK)
         Record_LoadSavestate();
 
-    // disable loop options if recording is in use
-    if ((LabOptions_Record[OPTREC_HMNMODE].option_val != 1) && (LabOptions_Record[OPTREC_CPUMODE].option_val != 2))
+    // disable some options if recording is in use
+    if (LabOptions_Record[OPTREC_HMNMODE].option_val == RECMODE_HMN_RECORD ||
+        LabOptions_Record[OPTREC_CPUMODE].option_val == RECMODE_CPU_RECORD)
+    {
+        LabOptions_Record[OPTREC_LOOP].option_val = 0;
+        LabOptions_Record[OPTREC_LOOP].disable = 1;
+        LabOptions_Record[OPTREC_AUTORESTORE].option_val = AUTORESTORE_NONE;
+        LabOptions_Record[OPTREC_AUTORESTORE].disable = 1;
+    }
+    else
     {
         LabOptions_Record[OPTREC_LOOP].disable = 0;
         LabOptions_Record[OPTREC_AUTORESTORE].disable = 0;
     }
+
+    // Mirrored Playback is only available in playing back and not in recording
+    if ((value == RECMODE_CPU_PLAYBACK || LabOptions_Record[OPTREC_HMNMODE].option_val == RECMODE_HMN_PLAYBACK) &&
+        (value != RECMODE_CPU_RECORD && LabOptions_Record[OPTREC_HMNMODE].option_val != RECMODE_HMN_RECORD))
+    {
+        LabOptions_Record[OPTREC_MIRRORED_PLAYBACK].disable = 0;
+    }
     else
     {
-        LabOptions_Record[OPTREC_LOOP].disable = 1;
-        LabOptions_Record[OPTREC_AUTORESTORE].disable = 1;
+        LabOptions_Record[OPTREC_MIRRORED_PLAYBACK].disable = 1;
     }
+
+    return;
+}
+void Record_ChangeMirroredPlayback(GOBJ *menu_gobj, int value)
+{
+    // Cannot change HMN/CPU Mode while mirrored playback is on
+    if (value == 1)
+    {
+        LabOptions_Record[OPTREC_HMNMODE].disable = 1;
+        LabOptions_Record[OPTREC_CPUMODE].disable = 1;
+    }
+    else
+    {
+        LabOptions_Record[OPTREC_HMNMODE].disable = 0;
+        LabOptions_Record[OPTREC_CPUMODE].disable = 0;
+    }
+
+    Record_LoadSavestate();
 
     return;
 }
@@ -3736,6 +3825,11 @@ void Record_OnSuccessfulSave(int deleteRecordings)
     // enable other options
     for (int i = 0; i < sizeof(LabOptions_Record) / sizeof(EventOption); i++)
     {
+        if (i == OPTREC_MIRRORED_PLAYBACK ||
+            (i == OPTREC_HMNMODE && LabOptions_Record[OPTREC_MIRRORED_PLAYBACK].option_val == 1) ||
+            (i == OPTREC_CPUMODE && LabOptions_Record[OPTREC_MIRRORED_PLAYBACK].option_val == 1))
+          continue;
+
         LabOptions_Record[i].disable = 0;
     }
 
@@ -3753,10 +3847,12 @@ void Record_OnSuccessfulSave(int deleteRecordings)
         }
 
         // init settings
-        LabOptions_Record[OPTREC_HMNMODE].option_val = 0; // set hmn to off
+        LabOptions_Record[OPTREC_HMNMODE].option_val = RECMODE_HMN_OFF;
         LabOptions_Record[OPTREC_HMNSLOT].option_val = 1; // set hmn to slot 1
-        LabOptions_Record[OPTREC_CPUMODE].option_val = 0; // set cpu to off
+        LabOptions_Record[OPTREC_CPUMODE].option_val = RECMODE_CPU_OFF;
         LabOptions_Record[OPTREC_CPUSLOT].option_val = 1; // set cpu to slot 1
+        LabOptions_Record[OPTREC_MIRRORED_PLAYBACK].option_val = 0;
+        LabOptions_Record[OPTREC_MIRRORED_PLAYBACK].disable = 1;
     }
 
     // also save to personal savestate
@@ -3955,7 +4051,14 @@ void Record_StartExport(GOBJ *menu_gobj)
     return;
 }
 void Record_LoadSavestate() {
-    event_vars->Savestate_Load(rec_state);
+    event_vars->Savestate_Load(
+        rec_state,
+        (
+            LabOptions_Record[OPTREC_MIRRORED_PLAYBACK].option_val &&
+            (LabOptions_Record[OPTREC_HMNMODE].option_val == RECMODE_HMN_PLAYBACK || LabOptions_Record[OPTREC_CPUMODE].option_val == RECMODE_CPU_PLAYBACK) &&
+            (LabOptions_Record[OPTREC_HMNMODE].option_val != RECMODE_HMN_RECORD && LabOptions_Record[OPTREC_CPUMODE].option_val != RECMODE_CPU_RECORD)
+        )
+    );
     playback_cancelled = false;
 }
 
@@ -4018,7 +4121,14 @@ void Savestates_Update()
                 if ((pad->down & HSD_BUTTON_DPAD_LEFT) && !(pad->held & blacklist))
                 {
                     // load state
-                    event_vars->Savestate_Load(event_vars->savestate);
+                    event_vars->Savestate_Load(
+                        event_vars->savestate,
+                        (
+                            LabOptions_Record[OPTREC_MIRRORED_PLAYBACK].option_val &&
+                            (LabOptions_Record[OPTREC_HMNMODE].option_val == RECMODE_HMN_PLAYBACK || LabOptions_Record[OPTREC_CPUMODE].option_val == RECMODE_CPU_PLAYBACK) &&
+                            (LabOptions_Record[OPTREC_HMNMODE].option_val != RECMODE_HMN_RECORD && LabOptions_Record[OPTREC_CPUMODE].option_val != RECMODE_CPU_RECORD)
+                        )
+                    );
                     playback_cancelled = false;
 
                     // re-roll random slot
@@ -5226,6 +5336,9 @@ static void UpdateOverlays(GOBJ *character, EventOption *overlays) {
             if (ov.occur_once && *overlay_running == j)
                 return;
 
+            memset(&data->color[1], 0, sizeof(ColorOverlay));
+            memset(&data->color[0], 0, sizeof(ColorOverlay));
+
             *overlay_running = j;
             data->color[1].hex = ov.color;
             data->color[1].color_enable = 1;
@@ -5282,6 +5395,22 @@ void Event_Init(GOBJ *gobj)
 
     Memcard *memcard = R13_PTR(MEMCARD);
     LabOptions_General[OPTGEN_FRAMEBTN].option_val = memcard->TM_LabFrameAdvanceButton;
+    LabOptions_CPU[OPTCPU_CTRGRND].option_val = memcard->TM_LabCPUCounterGround;
+    LabOptions_CPU[OPTCPU_CTRAIR].option_val = memcard->TM_LabCPUCounterAir;
+    LabOptions_CPU[OPTCPU_CTRSHIELD].option_val = memcard->TM_LabCPUCounterShield;
+    LabOptions_General[OPTGEN_INPUT].option_val = memcard->TM_LabCPUInputDisplay;
+
+    int overlay_save_count = sizeof(memcard->TM_LabSavedOverlays_HMN) / sizeof(OverlaySave);
+    for (int i = 0; i < overlay_save_count; ++i) {
+        OverlaySave save_hmn = memcard->TM_LabSavedOverlays_HMN[i];
+        OverlaySave save_cpu = memcard->TM_LabSavedOverlays_CPU[i];
+
+        if (save_hmn.overlay != 0)
+            LabOptions_OverlaysHMN[save_hmn.group].option_val = save_hmn.overlay;
+
+        if (save_cpu.overlay != 0)
+            LabOptions_OverlaysCPU[save_cpu.group].option_val = save_cpu.overlay;
+    }
 
     // theres got to be a better way to do this...
     event_vars = *event_vars_ptr;
@@ -5298,7 +5427,7 @@ void Event_Init(GOBJ *gobj)
     InfoDisplay_Update(infodisp_gobj_cpu, LabOptions_InfoDisplayCPU, Fighter_GetGObj(1), infodisp_gobj_hmn);
 
     // Init DIDraw
-    //DIDraw_Init();
+    DIDraw_Init();
 
     // Init Recording
     Record_Init();
@@ -5328,6 +5457,9 @@ void Event_Init(GOBJ *gobj)
     {
         Record_MemcardLoad(*onload_slot, *onload_fileno);
         LabOptions_Record[OPTREC_SAVE_LOAD] = Record_Load;
+
+        // When we load rwing savestates, we don't want infinite shields by default. This would cause desyncs galore.
+        LabOptions_CPU[OPTCPU_SHIELD].option_val = CPUINFSHIELD_OFF;
     }
 
     // Aitch: VERY nice for debugging. Please don't remove.
@@ -5338,6 +5470,12 @@ void Event_Init(GOBJ *gobj)
 // Update Function
 void Event_Update()
 {
+    GOBJ *hmn = Fighter_GetGObj(0);
+    FighterData *hmn_data = hmn->userdata;
+    HSD_Pad *pad = PadGet(hmn_data->pad_index, PADGET_MASTER);
+    GOBJ *cpu = Fighter_GetGObj(1);
+    FighterData *cpu_data = cpu->userdata;
+
     if (Pause_CheckStatus(1) != 2) {
         float speed = LabOptions_GameSpeeds[LabOptions_General[OPTGEN_SPEED].option_val];
         HSD_SetSpeedEasy(speed);
@@ -5346,7 +5484,7 @@ void Event_Update()
     }
 
     // update DI draw
-    //DIDraw_Update();
+    DIDraw_Update();
 
     // update info display
     InfoDisplay_Update(infodisp_gobj_hmn, LabOptions_InfoDisplayHMN, Fighter_GetGObj(0), NULL);
@@ -5359,105 +5497,13 @@ void Event_Update()
     Savestates_Update();
 }
 
-// Think Function
-void Event_Think(GOBJ *event)
-{
+void Event_Think_LabState_Normal(GOBJ *event) {
     LabData *eventData = event->userdata;
-
-    // get fighter data
     GOBJ *hmn = Fighter_GetGObj(0);
     FighterData *hmn_data = hmn->userdata;
     GOBJ *cpu = Fighter_GetGObj(1);
     FighterData *cpu_data = cpu->userdata;
     HSD_Pad *pad = PadGet(hmn_data->pad_index, PADGET_ENGINE);
-
-    // Disable the D-pad up button according to the OPTGEN_TAUNT value
-    if (LabOptions_General[OPTGEN_TAUNT].option_val == 1)
-    {
-      pad->held &= ~PAD_BUTTON_DPAD_UP;
-    }
-
-    // lock percent if enabled
-    if (LabOptions_CPU[OPTCPU_LOCKPCNT].option_val)
-    {
-        cpu_data->dmg.percent = cpu_locked_percent;
-        Fighter_SetHUDDamage(1, cpu_locked_percent);
-    }
-
-    if (LabOptions_General[OPTGEN_HMNPCNTLOCK].option_val)
-    {
-        hmn_data->dmg.percent = hmn_locked_percent;
-        Fighter_SetHUDDamage(0, hmn_locked_percent);
-    }        
-
-    // update menu's percent
-    LabOptions_General[OPTGEN_HMNPCNT].option_val = hmn_data->dmg.percent;
-    LabOptions_CPU[OPTCPU_PCNT].option_val = cpu_data->dmg.percent;
-    
-    // reset stale moves
-    if (LabOptions_General[OPTGEN_STALE].option_val == 0)
-    {
-        for (int i = 0; i < 6; i++)
-        {
-            // check if fighter exists
-            GOBJ *fighter = Fighter_GetGObj(i);
-            if (fighter != 0)
-            {
-                // reset stale move table
-                int *staleMoveTable = Fighter_GetStaleMoveTable(i);
-                memset(staleMoveTable, 0, 0x2C);
-            }
-        }
-    }
-
-    // apply intangibility
-    if (LabOptions_CPU[OPTCPU_INTANG].option_val == 1)
-    {
-        cpu_data->flags.no_reaction_always = 1;
-        cpu_data->flags.nudge_disable = 1;
-        cpu_data->grab.vuln = 0x1FF;
-        cpu_data->dmg.percent = 0;
-        Fighter_SetHUDDamage(cpu_data->ply, 0);
-
-        // if new state, apply colanim
-        if (cpu_data->TM.state_frame <= 1)
-        {
-            Fighter_ColAnim_Apply(cpu_data, INTANG_COLANIM, 0);
-        }
-    }
-    else
-    {
-        cpu_data->flags.no_reaction_always = 0;
-        cpu_data->flags.nudge_disable = 0;
-    }
-
-    // apply invisibility
-    int invisible = LabOptions_Tech[OPTTECH_INVISIBLE].option_val;
-    if (invisible) {
-        if (is_tech_anim(cpu_data->state_id))
-        {
-            // get distinguishable frame from lookup table
-            int char_id = cpu_data->kind;
-            if (char_id >= sizeof(tech_frame_distinguishable)/sizeof(*tech_frame_distinguishable))
-                assert("invalid character kind causing read out of bounds");
-
-            int frame_distinguishable = tech_frame_distinguishable[char_id];
-
-            // apply if tech anim is after distinguishable frame and invulnerable
-            if (frame_distinguishable != -1) {
-                int state_frame = cpu_data->TM.state_frame;
-
-                int after = state_frame > frame_distinguishable;
-                int vuln = cpu_data->TM.state_frame >= 19;
-
-                cpu_data->flags.invisible = frame_distinguishable < state_frame && state_frame < 20;
-
-                int sound = LabOptions_Tech[OPTTECH_SOUND].option_val;
-                if (sound && state_frame == frame_distinguishable)
-                    SFX_PlayCommon(1);
-            }
-        }
-    }
 
     static int move_timer = 0;
     const int MOVE_THRESHOLD = 10;
@@ -5684,9 +5730,144 @@ void Event_Think(GOBJ *event)
             }
         }
     }
-
-    return;
 }
+
+// Think Function
+void Event_Think(GOBJ *event)
+{
+    LabData *eventData = event->userdata;
+
+    // get fighter data
+    GOBJ *hmn = Fighter_GetGObj(0);
+    FighterData *hmn_data = hmn->userdata;
+    GOBJ *cpu = Fighter_GetGObj(1);
+    FighterData *cpu_data = cpu->userdata;
+    HSD_Pad *pad = PadGet(hmn_data->pad_index, PADGET_ENGINE);
+
+    // Disable the D-pad up button according to the OPTGEN_TAUNT value
+    if (LabOptions_General[OPTGEN_TAUNT].option_val == 1)
+    {
+      pad->held &= ~PAD_BUTTON_DPAD_UP;
+    }
+
+    // lock percent if enabled
+    if (LabOptions_CPU[OPTCPU_LOCKPCNT].option_val)
+    {
+        cpu_data->dmg.percent = cpu_locked_percent;
+        Fighter_SetHUDDamage(1, cpu_locked_percent);
+    }
+
+    if (LabOptions_General[OPTGEN_HMNPCNTLOCK].option_val)
+    {
+        hmn_data->dmg.percent = hmn_locked_percent;
+        Fighter_SetHUDDamage(0, hmn_locked_percent);
+    }        
+
+    // update menu's percent
+    LabOptions_General[OPTGEN_HMNPCNT].option_val = hmn_data->dmg.percent;
+    LabOptions_CPU[OPTCPU_PCNT].option_val = cpu_data->dmg.percent;
+    
+    // reset stale moves
+    if (LabOptions_General[OPTGEN_STALE].option_val == 0)
+    {
+        for (int i = 0; i < 6; i++)
+        {
+            // check if fighter exists
+            GOBJ *fighter = Fighter_GetGObj(i);
+            if (fighter != 0)
+            {
+                // reset stale move table
+                int *staleMoveTable = Fighter_GetStaleMoveTable(i);
+                memset(staleMoveTable, 0, 0x2C);
+            }
+        }
+    }
+
+    // apply intangibility
+    if (LabOptions_CPU[OPTCPU_INTANG].option_val == 1)
+    {
+        cpu_data->flags.no_reaction_always = 1;
+        cpu_data->flags.nudge_disable = 1;
+        cpu_data->grab.vuln = 0x1FF;
+        cpu_data->dmg.percent = 0;
+        Fighter_SetHUDDamage(cpu_data->ply, 0);
+
+        // if new state, apply colanim
+        if (cpu_data->TM.state_frame <= 1)
+        {
+            Fighter_ColAnim_Apply(cpu_data, INTANG_COLANIM, 0);
+        }
+    }
+    else
+    {
+        cpu_data->flags.no_reaction_always = 0;
+        cpu_data->flags.nudge_disable = 0;
+    }
+
+    // apply invisibility
+    int invisible = LabOptions_Tech[OPTTECH_INVISIBLE].option_val;
+    if (invisible) {
+        if (is_tech_anim(cpu_data->state_id))
+        {
+            // get distinguishable frame from lookup table
+            int char_id = cpu_data->kind;
+            if (char_id >= sizeof(tech_frame_distinguishable)/sizeof(*tech_frame_distinguishable))
+                assert("invalid character kind causing read out of bounds");
+
+            int frame_distinguishable = tech_frame_distinguishable[char_id];
+
+            // apply if tech anim is after distinguishable frame and invulnerable
+            if (frame_distinguishable != -1) {
+                int state_frame = cpu_data->TM.state_frame;
+
+                int after = state_frame > frame_distinguishable;
+                int vuln = cpu_data->TM.state_frame >= 19;
+
+                cpu_data->flags.invisible = frame_distinguishable < state_frame && state_frame < 20;
+
+                int sound = LabOptions_Tech[OPTTECH_SOUND].option_val;
+                if (sound && state_frame == frame_distinguishable)
+                    SFX_PlayCommon(1);
+            }
+        }
+    }
+
+    // update shield deterioration
+    switch (LabOptions_CPU[OPTCPU_SHIELD].option_val)
+    {
+        case CPUINFSHIELD_OFF:
+            break;
+        case CPUINFSHIELD_UNTIL_HIT:
+            if (eventData->cpu_hitshield == 0) {
+                hmn_data->shield.health = 60;
+                cpu_data->shield.health = 60;
+            }
+            break;
+        case CPUINFSHIELD_ON:
+            cpu_data->shield.health = 60;
+            hmn_data->shield.health = 60;
+            break;
+    }
+
+    switch (lab_state) {
+        case LabState_Normal:
+            Event_Think_LabState_Normal(event);
+            break;
+        case LabState_SetCPUPosition:
+            if (cpu_data->phys.air_state == 0) // if is grounded
+                Fighter_EnterFall(cpu);
+
+            Fighter_KillAllVelocity(cpu);
+            cpu_data->phys.pos.Y += cpu_data->attr.gravity; // remove small initial gravity delta
+
+            HSD_Pad *pad = PadGet(stc_hmn_controller, PADGET_MASTER);
+            cpu_data->phys.pos.X += pad->fstickX * 1.5;
+            cpu_data->phys.pos.Y += pad->fstickY * 1.5;
+
+            break;
+    }
+}
+
 // Initial Menu
 EventMenu *Event_Menu = &LabMenu_Main;
 

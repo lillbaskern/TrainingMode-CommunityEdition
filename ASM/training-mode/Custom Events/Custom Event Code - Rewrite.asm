@@ -256,11 +256,6 @@ EggsThink:
     # No Staling
     bl ResetStaleMoves
 
-    # Savestate Save/Load
-    bl CheckForSaveAndLoad
-    cmpwi r3, 0x1
-    beq EggsSetFreePractice
-
     # Check If Free Practice
     lbz r3, 0x5(r31)
     cmpwi r3, 0x0
@@ -269,9 +264,7 @@ EggsThink:
     lwz r0, 0x668(r27)
     rlwinm. r0, r0, 0, 29, 29
     beq EggsSkipFreePracticeCheck
-
     # Toggle Free Practice On
-EggsSetFreePractice:
     li r3, 0x1
     stb r3, 0x5(r31)
     # Timer Now Counts Up

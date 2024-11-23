@@ -303,19 +303,21 @@ FDDRecommendedZ:
     .align 2
 
 TextASCIILeft:
+    # Aitch: There must be some mapping between the text here and the OSD ids.
+    # I would love to figure out where that is! Lmk if you have any idea.
     blrl
     .string ""
     .string "Wavedash Info"
     .string "L-Cancel"
-    .string "Missed Tech"
+    .string "" # OSD ID 2
     .string "Act OoS Frame"
-    .string "Meteor Cancel"
+    .string "" # OSD ID 4
     .string "Dashback"
-    .string "Shield Drop"
-    .string "Inputs Per Minute"
+    .string "" # OSD ID 6
+    .string "" # OSD ID 7
     .string "Fighter-specific Tech"
     .string "Powershield Frame"
-    .string "Shield Poke + ADT"
+    .string "" # OSD ID 11
     .string "SDI Inputs"
     .string "Grab Breakout"
     .string "Ledgedash Info"
@@ -324,22 +326,21 @@ TextASCIILeft:
 
 TextASCIIRight:
     blrl
-
     .string ""
-    .string "Hitstun/Hitlag"
-    .string "Shield Stun"
+    .string "" # OSD ID 12
+    .string "Item Throw Interrupts" # OSD ID 13
     .string "Boost Grab"
     .string "" # DO NOT USE - reserved for custom events
     .string "Act OoLag"
-    .string "Crouch Cancel"
+    .string "" # OSD ID 17
     .string "Act OoAirborne"
     .string "Jump Cancel Timing"
     .string "Fastfall Timing"
     .string "Frame Advantage"
     .string "Combo Counter"
-    .string "DI Draw"
+    .string "" # OSD ID 0x800000 (???????????)
     .string ""
-    .string "UniversalControllerFix"
+    .string "" # OSD ID 27
     .align 2
 
 FDDTitleText:
