@@ -90,7 +90,7 @@
     .endm
 
     .macro Event_Ledgestall_Description
-    .string "Use ledgestalling to remain invincible while the lava rises!"
+    .string "Ledgestall to remain invincible while the lava rises!"
     .endm
 
     .macro Event_Ledgestall_PlayableCharacters
@@ -134,7 +134,7 @@
     .endm
 
     .macro Event_AttackOnShield_Description
-    .string "Practice attacks on a shielding opponent! Pause to change their OoS option."
+    .string "Practice attacks on a shielding opponent Pause to change their OoS option."
     .endm
 
     .macro Event_AttackOnShield_PlayableCharacters
@@ -168,7 +168,7 @@
     .endm
 
     .macro Event_SDI_Description
-    .string "Practice Smash DI'ing Fox's up-air!"
+    .string "Use Smash DI to escape Fox's up-air attack"
     .endm
 
     .macro Event_SDI_PlayableCharacters
@@ -203,7 +203,7 @@
 
     .macro Event_LedgeTech_Description
     # Ledge-Tech Training
-    .string "Practice ledge-teching Falco's down-smash!"
+    .string "Practice ledge-teching Falco's down-smash"
     .endm
 
     .macro Event_LedgeTech_PlayableCharacters
@@ -332,11 +332,11 @@
     .set Event_ArmadaShine, 1
     # Event Name
     .macro Event_ArmadaShine_Name
-    .string "Armada-Shine Training"
+    .string "Edgeguard Firefox Training"
     .endm
 
     .macro Event_ArmadaShine_Description
-    .string "Finish off the enemy Fox with an Armada-Shine!"
+    .string "Finish off the enemy Fox after he uses Firefox!"
     .endm
 
     .macro Event_ArmadaShine_PlayableCharacters
@@ -358,7 +358,7 @@
     .endm
 
     .macro Event_SideBSweetspot_Description
-    .string "Use a sweetspot side-B to avoid Marth's down-tilt and grab the ledge!"
+    .string "Use a sweetspot Side-B to avoid Marth's down-tilt and grab the ledge!"
     .endm
 
     .macro Event_SideBSweetspot_PlayableCharacters

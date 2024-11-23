@@ -29,11 +29,11 @@ Minigames:
     .align 2
 
 GeneralTech:
-    .string "Universal Tech"
+    .string "General Tech"
     .align 2
 
 SpacieTech:
-    .string "Spacie Tech"
+    .string "Character-specific Tech"
     .align 2
 
 Exit:
