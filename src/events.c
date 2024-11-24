@@ -257,7 +257,7 @@ static EventMatchData AttackOnShield_MatchData = {
 };
 EventDesc AttackOnShield = {
     .eventName = "Attack on Shield\n",
-    .eventDescription = "Practice attacks on a shielding opponent\nPause to change their OoS option\n",
+    .eventDescription = "Practice attacks on a shielding opponent\nPause to change their OoS option.\n",
     .eventFile = 0,
     .isChooseCPU = true,
     .isSelectStage = false,
@@ -340,7 +340,7 @@ static EventMatchData SDI_MatchData = {
 };
 EventDesc SDI = {
     .eventName = "SDI Training\n",
-    .eventDescription = "Use Smash DI to escape\nFox's up-air attack!",
+    .eventDescription = "Use Smash DI to escape\nFox's up-air!",
     .eventFile = 0,
     .isChooseCPU = false,
     .isSelectStage = false,

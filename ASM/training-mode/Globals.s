@@ -168,7 +168,7 @@
     .endm
 
     .macro Event_SDI_Description
-    .string "Use Smash DI to escape Fox's up-air attack"
+    .string "Use Smash DI to escape Fox's up-air!"
     .endm
 
     .macro Event_SDI_PlayableCharacters
@@ -329,23 +329,23 @@
     .byte KO
     .endm
 
-    .set Event_ArmadaShine, 1
+    .set Event_EdgeguardFirefox, 1
     # Event Name
-    .macro Event_ArmadaShine_Name
+    .macro Event_EdgeguardFirefox_Name
     .string "Edgeguard Firefox Training"
     .endm
 
-    .macro Event_ArmadaShine_Description
+    .macro Event_EdgeguardFirefox_Description
     .string "Finish off the enemy Fox after he uses Firefox!"
     .endm
 
-    .macro Event_ArmadaShine_PlayableCharacters
-    .byte Event_ArmadaShine
+    .macro Event_EdgeguardFirefox_PlayableCharacters
+    .byte Event_EdgeguardFirefox
     .long -1                                            # Fox_CSSID #Player Characters
     .long -1
     .endm
 
-    .macro Event_ArmadaShine_ScoreType
+    .macro Event_EdgeguardFirefox_ScoreType
     .byte KO
     .endm
 
@@ -442,7 +442,7 @@ SpacieTech:
     # Ledgetech Marth Counter
     Event_LedgetechCounter_Name
     # Armada-Shine Practice
-    Event_ArmadaShine_Name
+    Event_EdgeguardFirefox_Name
     Event_SideBSweetspot_Name
     Event_EscapeSheik_Name
     .align 2
@@ -474,7 +474,7 @@ SpacieTech:
     # Ledgetech Marths Counter
     Event_LedgetechCounter_Description
     # Armada-Shine Practice
-    Event_ArmadaShine_Description
+    Event_EdgeguardFirefox_Description
     Event_SideBSweetspot_Description
     Event_EscapeSheik_Description
     .align 2
@@ -506,7 +506,7 @@ GeneralTech:
 
 SpacieTech:
     Event_LedgetechCounter_PlayableCharacters
-    Event_ArmadaShine_PlayableCharacters
+    Event_EdgeguardFirefox_PlayableCharacters
     Event_SideBSweetspot_PlayableCharacters
     Event_EscapeSheik_PlayableCharacters
     .byte -1
