@@ -60,11 +60,6 @@ enum custom_asid_groups
     ASID_ANY,
 };
 
-typedef enum lab_state {
-    LabState_Normal,
-    LabState_SetCPUPosition,
-} LabState;
-
 // ACTIONS #################################################
 
 // CPU Action Definitions
@@ -1194,32 +1189,6 @@ enum cpu_inf_shield {
     CPUINFSHIELD_COUNT
 };
 
-enum cpu_option
-{
-    OPTCPU_PCNT,
-    OPTCPU_LOCKPCNT,
-    OPTCPU_TECHOPTIONS,
-    OPTCPU_TDI,
-    OPTCPU_CUSTOMTDI,
-    OPTCPU_SDINUM,
-    OPTCPU_SDIDIR,
-    OPTCPU_ASDI,
-    OPTCPU_SHIELD,
-    OPTCPU_SHIELDDIR,
-    OPTCPU_INTANG,
-    OPTCPU_MASH,
-    OPTCPU_BEHAVE,
-    OPTCPU_CTRGRND,
-    OPTCPU_CTRAIR,
-    OPTCPU_CTRSHIELD,
-    OPTCPU_CTRFRAMES,
-    OPTCPU_CTRHITS,
-    OPTCPU_SHIELDHITS,
-    OPTCPU_SET_POS,
-
-    OPTCPU_COUNT
-};
-
 enum asdi
 {
     ASDI_AUTO,
@@ -1246,6 +1215,44 @@ enum sdi_dir
     SDIDIR_COUNT
 };
 
+enum controlled_by
+{
+    CTRLBY_NONE,
+    CTRLBY_PORT_1,
+    CTRLBY_PORT_2,
+    CTRLBY_PORT_3,
+    CTRLBY_PORT_4,
+
+    CTRLBY_COUNT,
+};
+
+enum cpu_option
+{
+    OPTCPU_PCNT,
+    OPTCPU_LOCKPCNT,
+    OPTCPU_TECHOPTIONS,
+    OPTCPU_TDI,
+    OPTCPU_CUSTOMTDI,
+    OPTCPU_SDINUM,
+    OPTCPU_SDIDIR,
+    OPTCPU_ASDI,
+    OPTCPU_SHIELD,
+    OPTCPU_SHIELDDIR,
+    OPTCPU_INTANG,
+    OPTCPU_MASH,
+    OPTCPU_BEHAVE,
+    OPTCPU_CTRGRND,
+    OPTCPU_CTRAIR,
+    OPTCPU_CTRSHIELD,
+    OPTCPU_CTRFRAMES,
+    OPTCPU_CTRHITS,
+    OPTCPU_SHIELDHITS,
+    OPTCPU_SET_POS,
+    OPTCPU_CTRL_BY,
+
+    OPTCPU_COUNT
+};
+
 static char *LabValues_Shield[] = {"Off", "On Until Hit", "On"};
 static char *LabValues_ShieldDir[] = {"Neutral", "Up", "Towards", "Down", "Away"};
 static char *LabValues_CPUBehave[] = {"Stand", "Shield", "Crouch", "Jump"};
@@ -1256,6 +1263,7 @@ static char *LabValues_Tech[] = {"Random", "Neutral", "Away", "Towards", "None"}
 static char *LabValues_Getup[] = {"Random", "Stand", "Away", "Towards", "Attack"};
 static char *LabValues_GrabEscape[] = {"None", "Medium", "High", "Perfect"};
 static char *LabValues_LockCPUPercent[] = {"Off", "On"};
+static char *LabValues_CPUControlledBy[] = {"None", "Port 1", "Port 2", "Port 3", "Port 4"};
 
 static const EventOption LabOptions_CPU_MoveCPU = {
     .option_kind = OPTKIND_FUNC,
@@ -1419,6 +1427,15 @@ static EventOption LabOptions_CPU[OPTCPU_COUNT] = {
 
     // swapped between LabOptions_CPU_MoveCPU and LabOptions_CPU_FinishMoveCPU
     LabOptions_CPU_MoveCPU,
+
+    {
+        .option_kind = OPTKIND_STRING,
+        .value_num = sizeof(LabValues_CPUControlledBy) / 4,
+        .option_val = 0,
+        .option_name = "Controlled By",
+        .desc = "Select another port to control the CPU",
+        .option_values = LabValues_CPUControlledBy,
+    },
 };
 
 static EventMenu LabMenu_CPU = {

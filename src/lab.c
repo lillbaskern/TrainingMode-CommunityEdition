@@ -50,8 +50,6 @@ const int LOCKOUT_DURATION = 30;
 static float cpu_locked_percent = 0;
 static float hmn_locked_percent = 0;
 
-static LabState lab_state = LabState_Normal;
-
 // Menu Callbacks
 
 void Lab_ChangeInputDisplay(GOBJ *menu_gobj, int value) {
@@ -124,7 +122,6 @@ void Lab_ChangePlayerLockPercent(GOBJ *menu_gobj, int value)
 }
 
 void Lab_StartMoveCPU(GOBJ *menu_gobj) {
-    lab_state = LabState_SetCPUPosition;
     LabOptions_CPU[OPTCPU_SET_POS] = LabOptions_CPU_FinishMoveCPU;
 
     GOBJ *hmn = Fighter_GetGObj(0);
@@ -137,7 +134,6 @@ void Lab_StartMoveCPU(GOBJ *menu_gobj) {
 }
 
 void Lab_FinishMoveCPU(GOBJ *menu_gobj) {
-    lab_state = LabState_Normal;
     LabOptions_CPU[OPTCPU_SET_POS] = LabOptions_CPU_MoveCPU;
 
     GOBJ *hmn = Fighter_GetGObj(0);
@@ -3343,6 +3339,9 @@ void Record_Think(GOBJ *rec_gobj)
 {
     if (rec_state->is_exist != 1) return;
 
+    GOBJ *cpu = Fighter_GetGObj(1);
+    FighterData *cpu_data = cpu->userdata;
+
     // get current hmn recording slot
     int hmn_slot = LabOptions_Record[OPTREC_HMNSLOT].option_val;
     if (hmn_slot == 0) // use random slot
@@ -3412,8 +3411,10 @@ void Record_Think(GOBJ *rec_gobj)
             }
             case (AUTORESTORE_COUNTER):
             {
-                if (cpu_mode == RECMODE_CPU_OFF)
-                    restore = event_data->cpu_countering;
+                if (cpu_mode == RECMODE_CPU_OFF) {
+                    int state = cpu_data->state_id;
+                    restore = event_data->cpu_countering || (ASID_DEADDOWN <= state && state <= ASID_DEADUPFALLHITCAMERAICE);
+                }
                 break;
             }
         }
@@ -5448,8 +5449,8 @@ void Event_Init(GOBJ *gobj)
 
     // determine controllers
     stc_hmn_controller = Fighter_GetControllerPort(hmn_data->ply);
-    stc_cpu_controller = (stc_hmn_controller+1) % 4;
-    stc_null_controller = (stc_cpu_controller+1) % 4;
+    stc_cpu_controller = 4;
+    stc_null_controller = 5;
 
     // set CPU AI to no_act 15
     cpu_data->cpu.ai = 0;
@@ -5855,22 +5856,28 @@ void Event_Think(GOBJ *event)
             break;
     }
 
-    switch (lab_state) {
-        case LabState_Normal:
-            Event_Think_LabState_Normal(event);
-            break;
-        case LabState_SetCPUPosition:
-            if (cpu_data->phys.air_state == 0) // if is grounded
-                Fighter_EnterFall(cpu);
+    if (LabOptions_CPU[OPTCPU_SET_POS].onOptionSelect == Lab_FinishMoveCPU) {
+        // set CPU position
 
-            Fighter_KillAllVelocity(cpu);
-            cpu_data->phys.pos.Y += cpu_data->attr.gravity; // remove small initial gravity delta
+        if (cpu_data->phys.air_state == 0) // if is grounded
+            Fighter_EnterFall(cpu);
 
-            HSD_Pad *pad = PadGet(stc_hmn_controller, PADGET_MASTER);
-            cpu_data->phys.pos.X += pad->fstickX * 1.5;
-            cpu_data->phys.pos.Y += pad->fstickY * 1.5;
+        Fighter_KillAllVelocity(cpu);
+        cpu_data->phys.pos.Y += cpu_data->attr.gravity; // remove small initial gravity delta
 
-            break;
+        HSD_Pad *pad = PadGet(stc_hmn_controller, PADGET_MASTER);
+        cpu_data->phys.pos.X += pad->fstickX * 1.5;
+        cpu_data->phys.pos.Y += pad->fstickY * 1.5;
+    } else if (LabOptions_CPU[OPTCPU_CTRL_BY].option_val != CTRLBY_NONE) {
+        // cpu controlled by another port
+
+        int port = LabOptions_CPU[OPTCPU_CTRL_BY].option_val - CTRLBY_PORT_1;
+        Fighter_SetSlotType(cpu_data->ply, 0);
+        cpu_data->pad_index = port;
+    } else {
+        // normal cpu
+
+        Event_Think_LabState_Normal(event);
     }
 }
 
