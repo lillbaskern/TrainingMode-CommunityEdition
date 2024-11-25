@@ -5339,6 +5339,7 @@ static void UpdateOverlays(GOBJ *character, EventOption *overlays) {
             memset(&data->color[1], 0, sizeof(ColorOverlay));
             memset(&data->color[0], 0, sizeof(ColorOverlay));
 
+            // Changes the alpha of the double jump overlay based on the number of jump used
             if(j == OVERLAY_DOUBLEJUMP){
                 float alpha_factor =  1 - (float) (data->attr.max_jumps - data->jump.jumps_used) / (float)data->attr.max_jumps;
                 ov.color.a = ov.color.a * alpha_factor;
