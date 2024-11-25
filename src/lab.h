@@ -2052,7 +2052,7 @@ static EventOption LabOptions_OverlaysDefault[OVERLAY_COUNT] = {
     {
         .option_kind = OPTKIND_STRING,
         .value_num = OVERLAY_COLOUR_COUNT,
-        .option_name = "Double Jump",
+        .option_name = "Jumps",
         .desc = "",
         .option_values = LabValues_OverlayNames,
         .onOptionChange = Lab_ChangeOverlays,
