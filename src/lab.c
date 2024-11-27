@@ -959,8 +959,8 @@ static int CheckOverlay(GOBJ *character, OverlayGroup overlay)
         case (OVERLAY_DASH): return state == ASID_DASH;
         case (OVERLAY_RUN): return state == ASID_RUN;
 
-        case (OVERLAY_JUMPS):
-            return data->jump.jumps_used != 0;
+        case (OVERLAY_JUMPS_USED):
+            return data->jump.jumps_used > 1;
 
         case (OVERLAY_FULLHOP):
         {
@@ -5341,9 +5341,11 @@ static void UpdateOverlays(GOBJ *character, EventOption *overlays) {
             memset(&data->color[0], 0, sizeof(ColorOverlay));
 
             // Changes the alpha of the double jump overlay based on the number of jump used
-            if(j == OVERLAY_JUMPS){
-                float alpha_factor =  1 - (float) (data->attr.max_jumps - data->jump.jumps_used) / (float)data->attr.max_jumps;
-                ov.color.a = ov.color.a * alpha_factor;
+            if (j == OVERLAY_JUMPS_USED){
+                float max_jumps = (float)data->attr.max_jumps;
+                float jumps_used = (float)data->jump.jumps_used;
+                float alpha_factor = 1.0 - (max_jumps - jumps_used) / max_jumps;
+                ov.color.a *= alpha_factor;
             }
 
             *overlay_running = j;
