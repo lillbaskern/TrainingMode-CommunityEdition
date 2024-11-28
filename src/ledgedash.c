@@ -208,7 +208,7 @@ void Ledgedash_HUDInit(LedgedashData *event_data)
 
     // init text
     Text **text_arr = &event_data->hud.text_angle;
-    for (int i = 0; i < 2; i++)
+    for (int i = 0; i < 3; i++)
     {
 
         // Create text object
@@ -314,7 +314,8 @@ void Ledgedash_HUDThink(LedgedashData *event_data, FighterData *hmn_data)
             else if ((hmn_data->state_id == ASID_JUMPAERIALF) || (hmn_data->state_id == ASID_JUMPAERIALB) ||
                      (((hmn_data->kind == 4) || (hmn_data->kind == 15)) && ((hmn_data->state_id >= 341) && (hmn_data->state_id <= 345)))) // check for kirby and jiggs jump
             {
-                event_data->action_state.is_jump = 1;
+                //event_data->action_state.is_jump = 1; //commented out for saving jumpangle for hud
+
                 event_data->action_state.action_log[curr_frame] = LDACT_JUMP;
             }
             // look for airdodge
@@ -349,6 +350,22 @@ void Ledgedash_HUDThink(LedgedashData *event_data, FighterData *hmn_data)
                 // save airdodge angle
                 event_data->hud.airdodge_angle = angle;
                 event_data->action_state.is_airdodge = 1;
+            }
+        }
+
+        //grab jump angle
+
+        if(event_data->action_state.is_jump == 0)
+        {
+            //TODO: maybe log whether jumpaerialf or b occured?
+            if(((hmn_data->state_id == ASID_JUMPAERIALF) ||(hmn_data->TM.state_prev[0] == ASID_JUMPAERIALF) || (hmn_data->state_id == ASID_JUMPAERIALB) ||(hmn_data->TM.state_prev[0] == ASID_JUMPAERIALB)))
+            {
+                //determine airdodge angle (taken from where airdodge angle is saved)
+                float jumpAngle = atan2(hmn_data->input.lstick.Y, hmn_data->input.lstick.X) - -(M_PI / 2);
+
+                //save angle
+                event_data->hud.jump_angle = jumpAngle;
+                event_data->action_state.is_jump = 1;
             }
         }
 

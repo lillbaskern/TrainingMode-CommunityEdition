@@ -25,8 +25,10 @@ struct LedgedashData
         GOBJ *gobj;
         Text *text_angle;
         Text *text_galint;
+        Text *text_jumpAngle;
         int canvas;
         float airdodge_angle;
+        float jump_angle;
     } hud;
     struct
     {
